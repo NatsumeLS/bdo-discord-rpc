@@ -129,19 +129,17 @@ pub enum Page {
 }
 
 impl Page {
-    const ALL: [Page; 12] = [
-        Page::Overview,
-        Page::General,
-        Page::Identity,
-        Page::Display,
-        Page::Theme,
-        Page::Profile,
-        Page::Paths,
-        Page::Servers,
-        Page::Characters,
-        Page::Phases,
-        Page::Log,
-        Page::About,
+    const SECTIONS: [(&str, &[Page]); 4] = [
+        ("rail.status", &[Page::Overview, Page::Log]),
+        (
+            "rail.presence",
+            &[Page::Identity, Page::Display, Page::Phases, Page::Profile],
+        ),
+        ("rail.names", &[Page::Servers, Page::Characters]),
+        (
+            "rail.app",
+            &[Page::General, Page::Theme, Page::Paths, Page::About],
+        ),
     ];
 
     fn dirty(self, config: &Config, saved: &Config, no_baseline: bool) -> bool {
@@ -624,48 +622,73 @@ fn rail(state: &SettingsWindow) -> Element<'_, Message> {
     let c = state.scheme();
     let mut items = column![].spacing(4).padding(12);
 
-    let pages: &[Page] = if state.unreadable {
-        &[Page::Log]
+    let sections: &[(&str, &[Page])] = if state.unreadable {
+        &[("", &[Page::Log])]
     } else {
-        &Page::ALL
+        &Page::SECTIONS
     };
 
-    for &page in pages {
-        let selected = page == state.page;
-        let marker = dot(
-            c,
-            page.dirty(&state.config, &state.saved, state.no_baseline),
-        );
-
-        items = items.push(
-            button(
-                row![
-                    text(page.label())
+    for (index, (title, pages)) in sections.iter().enumerate() {
+        if !title.is_empty() {
+            items = items.push(
+                container(
+                    text(tr(title))
                         .size(type_scale::LABEL_LARGE)
-                        .width(Length::Fill),
-                    marker,
-                ]
-                .align_y(iced::Alignment::Center),
-            )
-            .width(Length::Fill)
-            .padding([12, 20])
-            .on_press(Message::Navigate(page))
-            .style(move |_theme, status| {
-                let (base, fg) = if selected {
-                    (c.secondary_container, c.on_secondary_container)
-                } else {
-                    (Color::TRANSPARENT, c.on_surface_variant)
-                };
-                m3::pill(m3::mix(base, c.on_surface, m3::layer(status)), fg)
-            }),
-        );
+                        .color(c.primary),
+                )
+                .padding(iced::Padding {
+                    top: if index == 0 { 4.0 } else { 16.0 },
+                    right: 20.0,
+                    bottom: 4.0,
+                    left: 20.0,
+                }),
+            );
+        }
+        for &page in *pages {
+            items = items.push(rail_item(state, page));
+        }
     }
 
-    container(items)
-        .width(Length::Fixed(RAIL_WIDTH))
-        .height(Length::Fill)
-        .style(move |_theme| container::background(c.surface_container))
-        .into()
+    container(
+        scrollable(items)
+            .height(Length::Fill)
+            .style(move |_theme, status| m3::scroll_style(c, status)),
+    )
+    .width(Length::Fixed(RAIL_WIDTH))
+    .height(Length::Fill)
+    .style(move |_theme| container::background(c.surface_container))
+    .into()
+}
+
+fn rail_item(state: &SettingsWindow, page: Page) -> Element<'_, Message> {
+    let c = state.scheme();
+    let selected = page == state.page;
+    let marker = dot(
+        c,
+        page.dirty(&state.config, &state.saved, state.no_baseline),
+    );
+
+    button(
+        row![
+            text(page.label())
+                .size(type_scale::LABEL_LARGE)
+                .width(Length::Fill),
+            marker,
+        ]
+        .align_y(iced::Alignment::Center),
+    )
+    .width(Length::Fill)
+    .padding([12, 20])
+    .on_press(Message::Navigate(page))
+    .style(move |_theme, status| {
+        let (base, fg) = if selected {
+            (c.secondary_container, c.on_secondary_container)
+        } else {
+            (Color::TRANSPARENT, c.on_surface_variant)
+        };
+        m3::pill(m3::mix(base, c.on_surface, m3::layer(status)), fg)
+    })
+    .into()
 }
 
 fn page(state: &SettingsWindow) -> Element<'_, Message> {

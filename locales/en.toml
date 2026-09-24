@@ -2,6 +2,12 @@
 name = "English"
 automatic = "Automatic"
 
+[rail]
+status = "Status"
+presence = "Presence"
+names = "Names"
+app = "App"
+
 [page]
 overview = "Overview"
 general = "General"

@@ -171,7 +171,8 @@ pub(super) fn overview(state: &SettingsWindow) -> Element<'_, Message> {
         for (label, value) in &group.rows {
             rows = rows.push(pair(state, label, value.clone()));
         }
-        groups.push((group.rows.len() + 1, rows.into()));
+        let height = GROUP_HEADING + PAIR_ROW * group.rows.len() as f32;
+        groups.push((height, rows.into()));
     }
     flow(state, groups, 20.0)
 }
@@ -387,9 +388,14 @@ fn language(state: &SettingsWindow) -> Element<'_, Message> {
     )
 }
 
-// Weights for `flow`: a switch is one line, a field, slider or chip row about two.
-const LINE: usize = 1;
-const BLOCK: usize = 2;
+// Estimated heights for `flow`: a switch, and a labeled field, slider or chip row.
+const LINE: f32 = 24.0;
+const BLOCK: f32 = 72.0;
+// One label and value row on Overview and the heading above a group of them.
+const PAIR_ROW: f32 = 24.0;
+const GROUP_HEADING: f32 = 28.0;
+// The two notes, the phase chips and the divider above the Phases fields.
+const PHASES_TOP: f32 = 200.0;
 
 pub(super) fn general(state: &SettingsWindow) -> Element<'_, Message> {
     flow(
@@ -765,8 +771,9 @@ pub(super) fn phases(state: &SettingsWindow) -> Element<'_, Message> {
     )]
     .spacing(16);
     // The fields come in pairs (an image and its hover, a label and its URL),
-    // so a wide window puts each pair on one row rather than splitting columns.
-    let per_row = if state.wide() { 2 } else { 1 };
+    // so when one column runs out of height each pair shares a row instead.
+    let one_column = PHASES_TOP + LINE + (BLOCK + 16.0) * PhaseField::ALL.len() as f32;
+    let per_row = if state.two_columns(one_column) { 2 } else { 1 };
     for pair in PhaseField::ALL.chunks(per_row) {
         let mut line = row![].spacing(super::COLUMN_GAP);
         for &which in pair {

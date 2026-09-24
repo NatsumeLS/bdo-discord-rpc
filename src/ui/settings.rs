@@ -51,7 +51,9 @@ const EDGE: u16 = 24;
 const KEY_WIDTH: f32 = 180.0;
 const COLUMN_WIDTH: f32 = 460.0;
 const COLUMN_GAP: f32 = 32.0;
-// Status bar, action bar, heading, the button row below the log, and padding.
+// Status bar, action bar, heading and padding, which every page shares.
+const PAGE_CHROME: f32 = 240.0;
+// The same, plus the button row below the log.
 const LOG_CHROME: f32 = 270.0;
 const LOG_MIN_HEIGHT: f32 = 380.0;
 const REFRESH: Duration = Duration::from_secs(1);
@@ -362,9 +364,11 @@ impl SettingsWindow {
         Scheme::of(&self.config)
     }
 
-    // Wide enough that each of two columns keeps a comfortable field width.
-    fn wide(&self) -> bool {
-        self.size.width - RAIL_WIDTH - 2.0 * f32::from(EDGE) >= 2.0 * COLUMN_WIDTH + COLUMN_GAP
+    // Two columns only when one would not fit the height and two fit the width.
+    fn two_columns(&self, content_height: f32) -> bool {
+        let wide =
+            self.size.width - RAIL_WIDTH - 2.0 * f32::from(EDGE) >= 2.0 * COLUMN_WIDTH + COLUMN_GAP;
+        wide && content_height > self.size.height - PAGE_CHROME
     }
 
     // The log view takes the height the rest of its page leaves, never less than it used to be.

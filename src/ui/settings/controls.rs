@@ -33,25 +33,26 @@ pub(super) fn marked<'a>(
         .into()
 }
 
-// One column, or two once the window is wide. Items keep their reading order,
-// down the left column and then the right, split where half the weight falls.
+// One column, or two when one would run out of height. Each item carries its
+// estimated height. Items keep their reading order, down the left column and
+// then the right, split where half the height falls.
 pub(super) fn flow<'a>(
     state: &SettingsWindow,
-    items: Vec<(usize, Element<'a, Message>)>,
+    items: Vec<(f32, Element<'a, Message>)>,
     spacing: f32,
 ) -> Element<'a, Message> {
-    if !state.wide() {
+    let total: f32 = items.iter().map(|(height, _)| height + spacing).sum();
+    if !state.two_columns(total) {
         return Column::with_children(items.into_iter().map(|(_, item)| item))
             .spacing(spacing)
             .into();
     }
-    let total: usize = items.iter().map(|(weight, _)| weight).sum();
     let (mut left, mut right) = (column![].spacing(spacing), column![].spacing(spacing));
-    let mut placed = 0;
-    for (weight, item) in items {
-        if placed * 2 < total {
+    let mut placed = 0.0;
+    for (height, item) in items {
+        if placed * 2.0 < total {
             left = left.push(item);
-            placed += weight;
+            placed += height + spacing;
         } else {
             right = right.push(item);
         }

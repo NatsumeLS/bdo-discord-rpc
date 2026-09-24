@@ -21,6 +21,7 @@ const GAME_ICON: &str = "https://cdn.patchbot.io/games/25/black-desert-online_17
 #[serde(default)]
 pub struct Config {
     pub enabled: bool,
+    pub language: String,
     pub client_id: String,
     pub debounce_seconds: u64,
     pub min_update_seconds: u64,
@@ -190,6 +191,7 @@ impl Default for Config {
     fn default() -> Self {
         Config {
             enabled: true,
+            language: "auto".into(),
             client_id: DEFAULT_CLIENT_ID.into(),
             debounce_seconds: 4,
             min_update_seconds: 15,

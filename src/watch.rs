@@ -14,8 +14,10 @@ use crate::read::log_tail::{GameState, LogTail};
 use crate::read::profile::{self, Profile};
 use crate::show::discord::Presence;
 use crate::show::presence::{build, context, PresenceFields};
+use crate::ui::lang::tr;
 use crate::ui::tray::Health;
 use crate::win::{self, log};
+use rust_i18n::t;
 
 const CONNECT_MIN_BACKOFF: u64 = 5;
 const CONNECT_MAX_BACKOFF: u64 = 60;
@@ -79,7 +81,7 @@ impl Status {
 
 impl Default for Status {
     fn default() -> Self {
-        Status::new(Health::Idle, "Starting up")
+        Status::new(Health::Idle, tr("status.starting_up"))
     }
 }
 
@@ -418,7 +420,7 @@ impl<'a> Watcher<'a> {
         self.reload();
 
         if !self.loaded {
-            return Status::new(Health::Waiting, "Config Error, see the Log");
+            return Status::new(Health::Waiting, tr("status.config_error"));
         }
 
         if !self.config.enabled {
@@ -432,7 +434,7 @@ impl<'a> Watcher<'a> {
                 self.game = None;
                 self.session = Session::default();
             }
-            return Status::new(Health::Idle, "Disabled");
+            return Status::new(Health::Idle, tr("status.disabled"));
         }
         if self.disabled {
             self.disabled = false;
@@ -441,7 +443,7 @@ impl<'a> Watcher<'a> {
 
         self.track_game();
         let Some(game) = self.game.as_mut() else {
-            return Status::new(Health::Idle, "Waiting for the Game");
+            return Status::new(Health::Idle, tr("status.waiting_for_game"));
         };
         game.tail.poll(&mut self.session.state);
 
@@ -456,7 +458,7 @@ impl<'a> Watcher<'a> {
 
         match self.link.client {
             Some(_) => Status::new(Health::Live, self.status_line()),
-            None => Status::new(Health::Waiting, "Discord not connected"),
+            None => Status::new(Health::Waiting, tr("status.discord_not_connected")),
         }
     }
 
@@ -479,6 +481,7 @@ impl<'a> Watcher<'a> {
                     self.link.reset();
                 }
                 self.config = reloaded;
+                crate::ui::lang::apply(&self.config);
                 self.derived = Derived::new(&self.config);
                 self.loaded = true;
             }
@@ -736,7 +739,7 @@ impl<'a> Watcher<'a> {
 
     fn status_line(&self) -> String {
         let stable = &self.session.stable;
-        let mut parts = vec![phase::label(stable.phase).to_string()];
+        let mut parts = vec![phase::display(stable.phase).to_string()];
         if let Some(key) = stable.game_server.as_deref() {
             parts.push(self.config.server_name(key));
         }
@@ -779,48 +782,67 @@ impl<'a> Watcher<'a> {
             line: status.line.clone(),
             groups: vec![
                 group(
-                    "Game",
+                    tr("overview.game"),
                     vec![
-                        row("Folder", game.map(|g| g.root.display().to_string())),
-                        row("Region", game.and_then(|_| self.region())),
-                        row("Log File", game.and_then(|g| g.tail.file_name())),
-                    ],
-                ),
-                group(
-                    "Session",
-                    vec![
-                        row("Phase", Some(phase::label(stable.phase).to_string())),
-                        row("Phase since", stamp(stable.phase_since)),
-                        row("Session Start", stamp(stable.session_start)),
                         row(
-                            "Server",
-                            stable
-                                .game_server
-                                .as_deref()
-                                .map(|key| format!("{key} ({})", config.server_name(key))),
+                            tr("overview.folder"),
+                            game.map(|g| g.root.display().to_string()),
+                        ),
+                        row(tr("overview.region"), game.and_then(|_| self.region())),
+                        row(
+                            tr("overview.log_file"),
+                            game.and_then(|g| g.tail.file_name()),
                         ),
                     ],
                 ),
                 group(
-                    "You",
+                    tr("overview.session"),
                     vec![
-                        row("Family", self.derived.family.clone()),
                         row(
-                            "Character",
+                            tr("overview.phase"),
+                            Some(phase::display(stable.phase).to_string()),
+                        ),
+                        row(tr("overview.phase_since"), stamp(stable.phase_since)),
+                        row(tr("overview.session_start"), stamp(stable.session_start)),
+                        row(
+                            tr("overview.server"),
+                            stable.game_server.as_deref().map(|key| {
+                                t!("overview.named", key = key, name = config.server_name(key))
+                                    .into_owned()
+                            }),
+                        ),
+                    ],
+                ),
+                group(
+                    tr("overview.you"),
+                    vec![
+                        row(tr("overview.family"), self.derived.family.clone()),
+                        row(
+                            tr("overview.character"),
                             self.session.character.as_deref().map(|key| {
                                 match config.characters.get(key) {
                                     Some(name) if self.derived.unmatched.as_ref() == Some(name) => {
-                                        format!("{key} ({name}, not on the Profile)")
+                                        t!("overview.not_on_profile", key = key, name = name)
                                     }
-                                    Some(name) => format!("{key} ({name})"),
-                                    None => format!("{key} (unnamed)"),
+                                    Some(name) => t!("overview.named", key = key, name = name),
+                                    None => t!("overview.unnamed", key = key),
                                 }
+                                .into_owned()
                             }),
                         ),
-                        row("Main", profile.and_then(Profile::main).map(|m| m.summary())),
-                        row("Guild", profile.and_then(|p| p.guild.clone())),
-                        row("Gear Score", profile.and_then(|p| p.gear_score.clone())),
-                        row("Profile Fetched", stamp(profile.map(|p| p.fetched_at))),
+                        row(
+                            tr("overview.main"),
+                            profile.and_then(Profile::main).map(|m| m.summary()),
+                        ),
+                        row(tr("overview.guild"), profile.and_then(|p| p.guild.clone())),
+                        row(
+                            tr("overview.gear_score"),
+                            profile.and_then(|p| p.gear_score.clone()),
+                        ),
+                        row(
+                            tr("overview.profile_fetched"),
+                            stamp(profile.map(|p| p.fetched_at)),
+                        ),
                     ],
                 ),
             ],

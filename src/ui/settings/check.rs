@@ -1,20 +1,22 @@
 use std::path::Path;
 
+use rust_i18n::t;
+
 use crate::show::presence::{is_placeholder, BUTTON_LABEL_MAX, BUTTON_URL_MAX};
 use crate::ui::m3;
 
 pub fn accent(value: &str) -> Option<String> {
     m3::parse_hex(value)
         .is_none()
-        .then(|| "Not a Color, using the Default".to_string())
+        .then(|| t!("check.accent").into_owned())
 }
 
 pub fn app_id(value: &str) -> Option<String> {
     let value = value.trim();
     if value.is_empty() {
-        return Some("Needed to connect to Discord".to_string());
+        return Some(t!("check.app_id_needed").into_owned());
     }
-    (!value.chars().all(|c| c.is_ascii_digit())).then(|| "An App ID is all digits".to_string())
+    (!value.chars().all(|c| c.is_ascii_digit())).then(|| t!("check.app_id_digits").into_owned())
 }
 
 fn folder(value: &str, marker: &str) -> Option<String> {
@@ -24,9 +26,9 @@ fn folder(value: &str, marker: &str) -> Option<String> {
     }
     let path = Path::new(value);
     if !path.is_dir() {
-        return Some("No such Folder".to_string());
+        return Some(t!("check.no_folder").into_owned());
     }
-    (!path.join(marker).exists()).then(|| format!("No {marker} here"))
+    (!path.join(marker).exists()).then(|| t!("check.no_marker", marker = marker).into_owned())
 }
 
 pub fn game_folder(value: &str) -> Option<String> {
@@ -40,7 +42,7 @@ pub fn user_data(value: &str) -> Option<String> {
 pub fn url(value: &str) -> Option<String> {
     let value = value.trim();
     (!value.is_empty() && !value.starts_with("http://") && !value.starts_with("https://"))
-        .then(|| "Must start with https://".to_string())
+        .then(|| t!("check.https").into_owned())
 }
 
 pub fn image(value: &str) -> Option<String> {
@@ -49,7 +51,7 @@ pub fn image(value: &str) -> Option<String> {
         return None;
     }
     if !value.starts_with("https://") {
-        return Some("A URL must be https://".to_string());
+        return Some(t!("check.image_https").into_owned());
     }
     let path = value.split(['?', '#']).next().unwrap_or(value);
     let extension = path
@@ -59,7 +61,7 @@ pub fn image(value: &str) -> Option<String> {
         extension.as_deref(),
         Some("png" | "jpg" | "jpeg" | "webp" | "gif")
     ))
-    .then(|| "Must be a PNG, JPEG, WebP or GIF".to_string())
+    .then(|| t!("check.image_type").into_owned())
 }
 
 pub fn template(value: &str) -> Option<String> {
@@ -70,17 +72,17 @@ pub fn template(value: &str) -> Option<String> {
         let open = rest.find('{');
         let head = &rest[..open.unwrap_or(rest.len())];
         if let Some(at) = head.find('}') {
-            return Some(format!("{} closes nothing", snippet(&head[at..])));
+            return Some(t!("check.closes_nothing", text = snippet(&head[at..])).into_owned());
         }
 
         let after = &rest[open?..];
         let Some(close) = after.find('}') else {
-            return Some(format!("{} is missing its }}", snippet(after)));
+            return Some(t!("check.missing_close", text = snippet(after)).into_owned());
         };
 
         let name = &after[1..close];
         if !is_placeholder(name) {
-            return Some(format!("There is no {{{name}}}"));
+            return Some(t!("check.no_placeholder", name = name).into_owned());
         }
         rest = &after[close + 1..];
     }
@@ -88,7 +90,7 @@ pub fn template(value: &str) -> Option<String> {
 
 pub fn button_label(value: &str) -> Option<String> {
     (!value.contains('{') && value.trim().chars().count() > BUTTON_LABEL_MAX)
-        .then(|| format!("At most {BUTTON_LABEL_MAX} Characters"))
+        .then(|| t!("check.at_most", max = BUTTON_LABEL_MAX).into_owned())
 }
 
 pub fn button_url(value: &str) -> Option<String> {
@@ -97,7 +99,7 @@ pub fn button_url(value: &str) -> Option<String> {
         return None;
     }
     if value.len() > BUTTON_URL_MAX {
-        return Some(format!("At most {BUTTON_URL_MAX} Characters"));
+        return Some(t!("check.at_most", max = BUTTON_URL_MAX).into_owned());
     }
     url(value)
 }
@@ -106,13 +108,13 @@ pub fn name(value: &str) -> Option<String> {
     value
         .trim()
         .is_empty()
-        .then(|| "A Name cannot be blank".to_string())
+        .then(|| t!("prompt.blank").into_owned())
 }
 
 pub fn character_id(key: &str) -> Option<String> {
     let key = key.trim();
     if key.is_empty() {
-        return Some("An ID cannot be blank".to_string());
+        return Some(t!("check.id_blank").into_owned());
     }
-    (!key.chars().all(|c| c.is_ascii_digit())).then(|| "A Character ID is all digits".to_string())
+    (!key.chars().all(|c| c.is_ascii_digit())).then(|| t!("check.id_digits").into_owned())
 }

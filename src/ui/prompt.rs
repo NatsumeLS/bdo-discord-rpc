@@ -8,7 +8,9 @@ use iced::{Element, Length, Size, Task};
 
 use crate::config::{self, Config, Table};
 use crate::read::profile;
+use crate::ui::lang::{self, tr};
 use crate::ui::m3::{self, type_scale, Scheme};
+use rust_i18n::t;
 
 pub fn flag(table: Table) -> &'static str {
     match table {
@@ -25,29 +27,30 @@ pub fn from_flag(arg: &str) -> Option<Table> {
 
 fn title(table: Table) -> &'static str {
     match table {
-        Table::Servers => "New Server",
-        Table::Characters => "New Character",
+        Table::Servers => tr("prompt.new_server"),
+        Table::Characters => tr("prompt.new_character"),
     }
 }
 
 fn intro(table: Table, key: &str) -> String {
     match table {
-        Table::Servers => format!("You are on an unnamed Server: {key}"),
-        Table::Characters => format!("You are playing an unnamed Character: {key}"),
+        Table::Servers => t!("prompt.unnamed_server", key = key),
+        Table::Characters => t!("prompt.unnamed_character", key = key),
     }
+    .into_owned()
 }
 
 pub fn explain(table: Table) -> &'static str {
     match table {
-        Table::Servers => "An unnamed Server shows its Key.",
-        Table::Characters => "An unnamed Character shows as Unknown.",
+        Table::Servers => tr("names.server_explain"),
+        Table::Characters => tr("names.character_explain"),
     }
 }
 
 pub fn hint(table: Table) -> &'static str {
     match table {
-        Table::Servers => "Server Name",
-        Table::Characters => "Character Name",
+        Table::Servers => tr("names.server_name"),
+        Table::Characters => tr("names.character_name"),
     }
 }
 
@@ -119,6 +122,11 @@ pub fn run(table: Table, key: Option<String>) -> i32 {
         eprintln!("{} needs a {wanted}", flag(table));
         return 2;
     };
+
+    // Before the titles are looked up, since the running prompt is found by its title.
+    if let Ok(config) = config::load_or_create(&config::config_path()) {
+        lang::apply(&config);
+    }
 
     if !crate::win::claim_instance(crate::win::PROMPT) {
         crate::win::focus_window(title(Table::Servers));
@@ -202,8 +210,8 @@ struct Prompt {
 impl Prompt {
     fn save_name(&mut self) -> Result<(), String> {
         // Re-read, or a Save in the settings window since this opened is lost.
-        self.config = config::load_or_create(&self.path)
-            .map_err(|_| "The Config File will not parse, see the Log".to_string())?;
+        self.config =
+            config::load_or_create(&self.path).map_err(|_| tr("prompt.unreadable").to_string())?;
         self.table
             .entries_mut(&mut self.config)
             .insert(self.key.clone(), self.name.trim().to_string());
@@ -249,7 +257,7 @@ fn view(state: &Prompt) -> Element<'_, Message> {
     let reason = state
         .error
         .clone()
-        .or_else(|| blank.then(|| "A Name cannot be blank".to_string()));
+        .or_else(|| blank.then(|| tr("prompt.blank").to_string()));
     let wrong = reason.is_some();
 
     let field = text_input(hint(state.table), &state.name)
@@ -288,8 +296,8 @@ fn view(state: &Prompt) -> Element<'_, Message> {
     body = body.push(
         row![
             Space::new().width(Length::Fill),
-            m3::plain(c, "Skip", Some(Message::Dismiss)),
-            m3::filled(c, "Save", ready.then_some(Message::Submit)),
+            m3::plain(c, tr("prompt.skip"), Some(Message::Dismiss)),
+            m3::filled(c, tr("prompt.save"), ready.then_some(Message::Submit)),
         ]
         .spacing(8),
     );

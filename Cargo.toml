@@ -23,11 +23,13 @@ iced = { version = "0.14", default-features = false, features = [
 ] }
 material-color-rs = "0.1"
 png = "0.17"
+rust-i18n = "4"
 
 [dependencies.windows-sys]
 version = "0.59"
 features = [
     "Win32_Foundation",
+    "Win32_Globalization",
     "Win32_System_Diagnostics_ToolHelp",
     "Win32_System_Threading",
     "Win32_System_Console",

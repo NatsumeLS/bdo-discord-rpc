@@ -12,8 +12,10 @@ use super::{check, Message, PhaseField, SettingsWindow, KEY_WIDTH};
 use crate::config::{self, Table};
 use crate::phase::Phase;
 use crate::show::presence::PLACEHOLDERS;
+use crate::ui::lang::{self, tr};
 use crate::ui::m3::{self, shape, type_scale};
 use crate::ui::prompt;
+use rust_i18n::t;
 
 fn avatar() -> iced::widget::image::Handle {
     static DECODED: std::sync::OnceLock<iced::widget::image::Handle> = std::sync::OnceLock::new();
@@ -64,7 +66,7 @@ pub(super) fn about(state: &SettingsWindow) -> Element<'_, Message> {
     .spacing(16)
     .align_y(iced::Alignment::Center);
 
-    let mut built = column![heading(state, "Built with")].spacing(6);
+    let mut built = column![heading(state, tr("about.built_with"))].spacing(6);
     for (name, license) in LIBRARIES {
         built = built.push(pair(state, name, license.to_string()));
     }
@@ -74,9 +76,17 @@ pub(super) fn about(state: &SettingsWindow) -> Element<'_, Message> {
         who,
         divider(state),
         column![
-            heading(state, "This App"),
-            pair(state, "Version", env!("CARGO_PKG_VERSION").to_string()),
-            pair(state, "License", env!("CARGO_PKG_LICENSE").to_string()),
+            heading(state, tr("about.this_app")),
+            pair(
+                state,
+                tr("about.version"),
+                env!("CARGO_PKG_VERSION").to_string()
+            ),
+            pair(
+                state,
+                tr("about.license"),
+                env!("CARGO_PKG_LICENSE").to_string()
+            ),
         ]
         .spacing(6),
         divider(state),
@@ -90,7 +100,7 @@ const LIBRARIES: &[(&str, &str)] = include!(concat!(env!("OUT_DIR"), "/libraries
 
 pub(super) fn overview(state: &SettingsWindow) -> Element<'_, Message> {
     let Some(snapshot) = state.tray.snapshot.as_ref() else {
-        return note(state, "The Tray is not running");
+        return note(state, tr("overview.tray_not_running"));
     };
 
     let mut page = column![].spacing(20);
@@ -108,7 +118,7 @@ pub(super) fn theme_page(state: &SettingsWindow) -> Element<'_, Message> {
     let c = state.scheme();
 
     let mut modes = row![].spacing(8);
-    for (value, label) in [("dark", "Dark"), ("light", "Light")] {
+    for (value, label) in [("dark", tr("theme.dark")), ("light", tr("theme.light"))] {
         let selected = m3::dark(&state.config) == (value == "dark");
         modes = modes.push(m3::chip(c, label, selected, Message::ThemeMode(value)));
     }
@@ -117,19 +127,19 @@ pub(super) fn theme_page(state: &SettingsWindow) -> Element<'_, Message> {
     let palette_rows = wrapped(m3::Palette::ALL.map(|flavor| {
         m3::chip(
             c,
-            flavor.label(),
+            tr(&format!("palette.{}", flavor.key())),
             flavor == chosen,
             Message::ThemePalette(flavor),
         )
     }));
 
     let roles = [
-        ("Primary", c.primary),
-        ("Container", c.secondary_container),
-        ("Surface", c.surface),
-        ("Raised", c.surface_container),
-        ("Outline", c.outline),
-        ("Error", c.error),
+        (tr("theme.role_primary"), c.primary),
+        (tr("theme.role_container"), c.secondary_container),
+        (tr("theme.role_surface"), c.surface),
+        (tr("theme.role_raised"), c.surface_container),
+        (tr("theme.role_outline"), c.outline),
+        (tr("theme.role_error"), c.error),
     ];
     let mut palette = row![].spacing(10);
     for (label, color) in roles {
@@ -154,7 +164,7 @@ pub(super) fn theme_page(state: &SettingsWindow) -> Element<'_, Message> {
         marked(
             c,
             column![
-                text("Mode")
+                text(tr("theme.mode"))
                     .size(type_scale::BODY_MEDIUM)
                     .color(c.on_surface_variant),
                 modes,
@@ -166,7 +176,7 @@ pub(super) fn theme_page(state: &SettingsWindow) -> Element<'_, Message> {
         marked(
             c,
             column![
-                text("Palette")
+                text(tr("theme.palette"))
                     .size(type_scale::BODY_MEDIUM)
                     .color(c.on_surface_variant),
                 palette_rows,
@@ -178,7 +188,7 @@ pub(super) fn theme_page(state: &SettingsWindow) -> Element<'_, Message> {
         divider(state),
         field(
             state,
-            "Accent Color",
+            tr("theme.accent"),
             lens!(theme.accent),
             "F08080",
             check::accent,
@@ -186,7 +196,7 @@ pub(super) fn theme_page(state: &SettingsWindow) -> Element<'_, Message> {
         hue_slider(state),
         divider(state),
         column![
-            text("Preview")
+            text(tr("theme.preview"))
                 .size(type_scale::BODY_MEDIUM)
                 .color(c.on_surface_variant),
             palette,
@@ -221,7 +231,7 @@ fn hue_slider(state: &SettingsWindow) -> Element<'_, Message> {
 
     column![
         row![
-            text("Accent Hue")
+            text(tr("theme.hue"))
                 .size(type_scale::BODY_MEDIUM)
                 .color(c.on_surface_variant),
             Space::new().width(Length::Fill),
@@ -280,32 +290,73 @@ fn pair<'a>(state: &SettingsWindow, label: &'a str, value: String) -> Element<'a
     .into()
 }
 
+fn language(state: &SettingsWindow) -> Element<'_, Message> {
+    let c = state.scheme();
+    let current = state.config.language.trim();
+    let choices = std::iter::once((lang::AUTO.to_string(), tr("language.automatic"))).chain(
+        lang::available().into_iter().map(|code| {
+            let name = lang::name(&code);
+            (code, name)
+        }),
+    );
+
+    let mut chips = row![].spacing(8);
+    for (code, label) in choices {
+        let selected = current == code || (current.is_empty() && code == lang::AUTO);
+        chips = chips.push(m3::chip(
+            c,
+            label,
+            selected,
+            Message::Text(lens!(language), code),
+        ));
+    }
+
+    marked(
+        c,
+        column![
+            text(tr("general.language"))
+                .size(type_scale::BODY_MEDIUM)
+                .color(c.on_surface_variant),
+            chips,
+        ]
+        .spacing(8)
+        .into(),
+        state.changed(lens!(language)),
+    )
+}
+
 pub(super) fn general(state: &SettingsWindow) -> Element<'_, Message> {
     column![
-        switch(state, "Enabled", lens!(enabled)),
+        switch(state, tr("general.enabled"), lens!(enabled)),
+        language(state),
         field(
             state,
-            "Discord App ID",
+            tr("general.app_id"),
             lens!(client_id),
-            "From the Discord Developer Portal",
+            tr("general.app_id_hint"),
             check::app_id,
         ),
-        dial(state, "Debounce Seconds", lens!(debounce_seconds), 0..=120),
         dial(
             state,
-            "Minimum Seconds between Updates",
+            tr("general.debounce"),
+            lens!(debounce_seconds),
+            0..=120
+        ),
+        dial(
+            state,
+            tr("general.min_update"),
             lens!(min_update_seconds),
             5..=600,
         ),
-        dial(state, "Poll Seconds", lens!(poll_seconds), 1..=60),
+        dial(state, tr("general.poll"), lens!(poll_seconds), 1..=60),
         switch(
             state,
-            "Ask for a Name on a New Server",
+            tr("general.ask_server"),
             lens!(prompt_unknown_server),
         ),
         switch(
             state,
-            "Ask for a Name on a New Character",
+            tr("general.ask_character"),
             lens!(prompt_unknown_character),
         ),
     ]
@@ -315,20 +366,28 @@ pub(super) fn general(state: &SettingsWindow) -> Element<'_, Message> {
 
 pub(super) fn identity(state: &SettingsWindow) -> Element<'_, Message> {
     column![
-        switch(state, "Show Family Name", lens!(identity.show_family)),
-        switch(state, "Show Character Name", lens!(identity.show_character)),
+        switch(
+            state,
+            tr("identity.show_family"),
+            lens!(identity.show_family)
+        ),
+        switch(
+            state,
+            tr("identity.show_character"),
+            lens!(identity.show_character)
+        ),
         field(
             state,
-            "Family Name",
+            tr("identity.family"),
             lens!(identity.family_name),
-            "Detects from UserCache",
+            tr("identity.family_hint"),
             |_| None,
         ),
         field(
             state,
-            "Region Name",
+            tr("identity.region"),
             lens!(identity.region_name),
-            "Reads from service.ini",
+            tr("identity.region_hint"),
             |_| None,
         ),
     ]
@@ -338,20 +397,20 @@ pub(super) fn identity(state: &SettingsWindow) -> Element<'_, Message> {
 
 pub(super) fn display(state: &SettingsWindow) -> Element<'_, Message> {
     column![
-        switch(state, "Show the Server", lens!(display.show_server)),
-        switch(state, "Show the Region", lens!(display.show_region)),
+        switch(state, tr("display.show_server"), lens!(display.show_server)),
+        switch(state, tr("display.show_region"), lens!(display.show_region)),
         field(
             state,
-            "Game Icon",
+            tr("display.game_icon"),
             lens!(display.game_icon),
-            "Square PNG, JPEG, WebP or GIF URL",
+            tr("display.game_icon_hint"),
             check::image,
         ),
         field(
             state,
-            "Unknown Text",
+            tr("display.unknown"),
             lens!(display.unknown),
-            "Shows Nothing",
+            tr("display.unknown_hint"),
             |_| None,
         ),
     ]
@@ -361,24 +420,24 @@ pub(super) fn display(state: &SettingsWindow) -> Element<'_, Message> {
 
 pub(super) fn profile(state: &SettingsWindow) -> Element<'_, Message> {
     column![
-        switch(state, "Look up my Profile", lens!(profile.enabled)),
+        switch(state, tr("profile.enabled"), lens!(profile.enabled)),
         field(
             state,
-            "Profile URL",
+            tr("profile.url"),
             lens!(profile.url),
-            "Searches for the Family Name",
+            tr("profile.url_hint"),
             check::url,
         ),
         field(
             state,
-            "Search URL",
+            tr("profile.search"),
             lens!(profile.search_url),
-            "Region-specific",
+            tr("profile.search_hint"),
             check::url,
         ),
         dial(
             state,
-            "Refresh Minutes",
+            tr("profile.refresh"),
             lens!(profile.refresh_minutes),
             15..=1440,
         ),
@@ -391,16 +450,16 @@ pub(super) fn paths(state: &SettingsWindow) -> Element<'_, Message> {
     column![
         field(
             state,
-            "Game Folder",
+            tr("paths.game"),
             lens!(paths.game_root),
-            "Finds the running Game",
+            tr("paths.game_hint"),
             check::game_folder,
         ),
         field(
             state,
-            "User Data Folder",
+            tr("paths.user_data"),
             lens!(paths.user_data_dir),
-            "Uses Documents/Black Desert",
+            tr("paths.user_data_hint"),
             check::user_data,
         ),
     ]
@@ -411,8 +470,8 @@ pub(super) fn paths(state: &SettingsWindow) -> Element<'_, Message> {
 pub(super) fn names(state: &SettingsWindow, table: Table) -> Element<'_, Message> {
     let c = state.scheme();
     let key_hint = match table {
-        Table::Servers => "Server Host",
-        Table::Characters => "Character ID",
+        Table::Servers => tr("names.server_key"),
+        Table::Characters => tr("names.character_key"),
     };
     let entries = table.entries(&state.config);
     let pending = &state.pending[table as usize];
@@ -442,7 +501,7 @@ pub(super) fn names(state: &SettingsWindow, table: Table) -> Element<'_, Message
                     .width(Length::Fill),
                     icon_button(
                         state,
-                        "Restore",
+                        tr("names.restore"),
                         Some(Message::TableRestore(table, key.clone()))
                     ),
                 ]
@@ -465,7 +524,7 @@ pub(super) fn names(state: &SettingsWindow, table: Table) -> Element<'_, Message
                     .style(move |_t, status| m3::field_style(c, status, blank)),
                 icon_button(
                     state,
-                    "Remove",
+                    tr("names.remove"),
                     Some(Message::TableRemove(table, key.clone()))
                 ),
             ]
@@ -493,7 +552,11 @@ pub(super) fn names(state: &SettingsWindow, table: Table) -> Element<'_, Message
             .size(type_scale::BODY_MEDIUM)
             .padding([8, 12])
             .style(move |_t, status| m3::field_style(c, status, false)),
-        icon_button(state, "Add", ready.then_some(Message::TableAdd(table))),
+        icon_button(
+            state,
+            tr("names.add"),
+            ready.then_some(Message::TableAdd(table))
+        ),
     ]
     .spacing(8)
     .align_y(iced::Alignment::Center);
@@ -525,7 +588,7 @@ pub(super) fn phases(state: &SettingsWindow) -> Element<'_, Message> {
     let chips = wrapped(Phase::ALL.map(|phase| {
         m3::chip(
             c,
-            phase.label(),
+            crate::phase::display(Some(phase)),
             phase == state.phase,
             Message::SelectPhase(phase),
         )
@@ -533,7 +596,7 @@ pub(super) fn phases(state: &SettingsWindow) -> Element<'_, Message> {
 
     let mut fields = column![switch_with(
         state,
-        "Broadcast this Phase",
+        tr("phases.broadcast"),
         cfg.report,
         Message::PhaseReport,
         cfg.report != saved.report
@@ -559,11 +622,11 @@ pub(super) fn phases(state: &SettingsWindow) -> Element<'_, Message> {
         .join(" ");
 
     column![
-        note(state, format!("Placeholders: {placeholders}")),
         note(
             state,
-            "Discord shows Buttons to other People only, never to you"
+            t!("phases.placeholders", list = placeholders).into_owned()
         ),
+        note(state, tr("phases.buttons_note")),
         chips,
         divider(state),
         fields,
@@ -588,7 +651,7 @@ fn wrapped<'a>(chips: impl IntoIterator<Item = Element<'a, Message>>) -> Element
 pub(super) fn log_page(state: &SettingsWindow) -> Element<'_, Message> {
     let c = state.scheme();
     let body: Element<Message> = if state.log.is_empty() {
-        note(state, "Nothing yet")
+        note(state, tr("log.empty"))
     } else {
         use crate::win::Level;
         // Non-breaking, so trailing spaces keep their width and every message lines up.
@@ -638,7 +701,7 @@ pub(super) fn log_page(state: &SettingsWindow) -> Element<'_, Message> {
     column![
         body,
         row![
-            icon_button(state, "Open Folder", Some(Message::OpenFolder)),
+            icon_button(state, tr("log.open_folder"), Some(Message::OpenFolder)),
             note(state, config::log_path().display().to_string()),
         ]
         .spacing(12)

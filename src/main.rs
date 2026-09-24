@@ -1,5 +1,7 @@
 #![windows_subsystem = "windows"]
 
+rust_i18n::i18n!("locales", fallback = "en");
+
 mod config;
 mod phase;
 mod read;
@@ -77,6 +79,9 @@ fn run() -> i32 {
     }
     win::enable_logfile(config::log_path());
     log(&format!("Started version {}", env!("CARGO_PKG_VERSION")));
+    if let Ok(config) = config::load_or_create(&config::config_path()) {
+        ui::lang::apply(&config);
+    }
 
     let shared = Arc::new(Shared::default());
     let worker = {
@@ -97,7 +102,13 @@ fn run() -> i32 {
     let mut shown = watch::Status::default();
     let mut settings = win::ChildWindow::default();
     let mut config_error_shown = false;
+    let mut labelled = rust_i18n::locale().to_string();
     loop {
+        if *rust_i18n::locale() != *labelled {
+            labelled = rust_i18n::locale().to_string();
+            tray.relabel();
+        }
+
         match tray.pump() {
             Some(tray::Action::Quit) => break,
             Some(tray::Action::ToggleSettings) => {

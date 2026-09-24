@@ -1,4 +1,6 @@
 use serde::{Deserialize, Serialize};
+
+use crate::ui::lang::tr;
 use tray_icon::menu::{CheckMenuItem, Menu, MenuEvent, MenuId, MenuItem, PredefinedMenuItem};
 use tray_icon::{Icon, MouseButton, MouseButtonState, TrayIcon, TrayIconBuilder, TrayIconEvent};
 use windows_sys::Win32::UI::WindowsAndMessaging::{
@@ -83,6 +85,8 @@ pub struct Tray {
     icon: TrayIcon,
     health: Health,
     startup_item: CheckMenuItem,
+    reload_item: MenuItem,
+    quit_item: MenuItem,
     startup_id: MenuId,
     reload_id: MenuId,
     quit_id: MenuId,
@@ -90,9 +94,9 @@ pub struct Tray {
 
 impl Tray {
     pub fn new(startup_enabled: bool) -> Result<Tray, String> {
-        let startup = CheckMenuItem::new("Run at Startup", true, startup_enabled, None);
-        let reload = MenuItem::new("Reload Config", true, None);
-        let quit = MenuItem::new("Quit", true, None);
+        let startup = CheckMenuItem::new(tr("tray.run_at_startup"), true, startup_enabled, None);
+        let reload = MenuItem::new(tr("tray.reload_config"), true, None);
+        let quit = MenuItem::new(tr("tray.quit"), true, None);
 
         let menu = Menu::new();
         menu.append_items(&[&startup, &reload, &PredefinedMenuItem::separator(), &quit])
@@ -118,7 +122,15 @@ impl Tray {
             reload_id: reload.id().clone(),
             quit_id: quit.id().clone(),
             startup_item: startup,
+            reload_item: reload,
+            quit_item: quit,
         })
+    }
+
+    pub fn relabel(&self) {
+        self.startup_item.set_text(tr("tray.run_at_startup"));
+        self.reload_item.set_text(tr("tray.reload_config"));
+        self.quit_item.set_text(tr("tray.quit"));
     }
 
     pub fn set_status(&mut self, health: Health, line: &str) {

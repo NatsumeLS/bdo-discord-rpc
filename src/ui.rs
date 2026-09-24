@@ -1,3 +1,4 @@
+pub mod lang;
 pub mod m3;
 pub mod prompt;
 pub mod settings;

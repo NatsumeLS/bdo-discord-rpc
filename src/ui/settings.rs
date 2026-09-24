@@ -9,9 +9,11 @@ use iced::{border, Color, Element, Length, Size, Task};
 
 use crate::config::{self, Config, PhaseConfig, Table};
 use crate::phase::Phase;
+use crate::ui::lang::{self, tr};
 use crate::ui::m3::{self, shape, type_scale, Scheme};
 use crate::ui::tray::Health;
 use crate::watch;
+use rust_i18n::t;
 
 #[derive(Debug)]
 pub struct Lens<T: 'static> {
@@ -65,6 +67,7 @@ pub fn run(page: Page) -> i32 {
         }
     };
     let start = if unreadable { Page::Log } else { page };
+    lang::apply(&config);
 
     let boot = move || {
         let state = SettingsWindow {
@@ -147,6 +150,7 @@ impl Page {
             _ if no_baseline => true,
             Page::General => {
                 config.enabled != saved.enabled
+                    || config.language != saved.language
                     || config.client_id != saved.client_id
                     || config.debounce_seconds != saved.debounce_seconds
                     || config.min_update_seconds != saved.min_update_seconds
@@ -166,20 +170,20 @@ impl Page {
     }
 
     fn label(self) -> &'static str {
-        match self {
-            Page::Overview => "Overview",
-            Page::General => "General",
-            Page::Identity => "Identity",
-            Page::Display => "Display",
-            Page::Theme => "Theme",
-            Page::Profile => "Adventurer Profile",
-            Page::Paths => "Paths",
-            Page::Servers => "Server Names",
-            Page::Characters => "Character Names",
-            Page::Phases => "Phases",
-            Page::Log => "Log",
-            Page::About => "About",
-        }
+        tr(match self {
+            Page::Overview => "page.overview",
+            Page::General => "page.general",
+            Page::Identity => "page.identity",
+            Page::Display => "page.display",
+            Page::Theme => "page.theme",
+            Page::Profile => "page.profile",
+            Page::Paths => "page.paths",
+            Page::Servers => "page.servers",
+            Page::Characters => "page.characters",
+            Page::Phases => "page.phases",
+            Page::Log => "page.log",
+            Page::About => "page.about",
+        })
     }
 }
 
@@ -252,33 +256,35 @@ impl PhaseField {
     ];
 
     fn label(self) -> &'static str {
-        match self {
-            PhaseField::Details => "Details",
-            PhaseField::State => "State",
-            PhaseField::LargeImage => "Large Image",
-            PhaseField::LargeText => "Large Hover",
-            PhaseField::SmallImage => "Small Image",
-            PhaseField::SmallText => "Small Hover",
-            PhaseField::ButtonLabel => "Button Label",
-            PhaseField::ButtonUrl => "Button URL",
-            PhaseField::SecondButtonLabel => "Second Button Label",
-            PhaseField::SecondButtonUrl => "Second Button URL",
-        }
+        tr(match self {
+            PhaseField::Details => "phases.details",
+            PhaseField::State => "phases.state",
+            PhaseField::LargeImage => "phases.large_image",
+            PhaseField::LargeText => "phases.large_text",
+            PhaseField::SmallImage => "phases.small_image",
+            PhaseField::SmallText => "phases.small_text",
+            PhaseField::ButtonLabel => "phases.button_label",
+            PhaseField::ButtonUrl => "phases.button_url",
+            PhaseField::SecondButtonLabel => "phases.second_button_label",
+            PhaseField::SecondButtonUrl => "phases.second_button_url",
+        })
     }
 
     fn hint(self, cfg: &PhaseConfig) -> &'static str {
         match self {
-            PhaseField::Details => "Top Line",
-            PhaseField::State => "Second Line",
-            PhaseField::LargeImage => "Uses the Game Icon",
-            PhaseField::SmallImage if cfg.large_image.trim().is_empty() => "No Image",
-            PhaseField::SmallImage => "Uses the Game Icon",
+            PhaseField::Details => tr("phases.hint_details"),
+            PhaseField::State => tr("phases.hint_state"),
+            PhaseField::LargeImage => tr("phases.hint_game_icon"),
+            PhaseField::SmallImage if cfg.large_image.trim().is_empty() => {
+                tr("phases.hint_no_image")
+            }
+            PhaseField::SmallImage => tr("phases.hint_game_icon"),
             PhaseField::LargeText => "",
-            PhaseField::SmallText => "Needs a Small Image to show",
+            PhaseField::SmallText => tr("phases.hint_small_text"),
             PhaseField::ButtonLabel
             | PhaseField::ButtonUrl
             | PhaseField::SecondButtonLabel
-            | PhaseField::SecondButtonUrl => "No Button",
+            | PhaseField::SecondButtonUrl => tr("phases.hint_no_button"),
         }
     }
 
@@ -329,25 +335,36 @@ impl SettingsWindow {
 
     fn error(&self) -> Option<String> {
         let c = &self.config;
-        let named = |label: &str, reason: Option<String>| reason.map(|r| format!("{label}: {r}"));
+        let named = |label: &str, reason: Option<String>| {
+            reason.map(|r| t!("actions.field_error", field = label, reason = r).into_owned())
+        };
 
         if self.unreadable {
-            return Some("The Config File will not parse, see the Log".to_string());
+            return Some(tr("actions.unreadable").to_string());
         }
 
-        named("Accent Color", check::accent(&c.theme.accent))
-            .or_else(|| named("Discord App ID", check::app_id(&c.client_id)))
-            .or_else(|| named("Game Icon", check::image(&c.display.game_icon)))
-            .or_else(|| named("Profile URL", check::url(&c.profile.url)))
-            .or_else(|| named("Search URL", check::url(&c.profile.search_url)))
-            .or_else(|| named("Game Folder", check::game_folder(&c.paths.game_root)))
-            .or_else(|| named("User Data Folder", check::user_data(&c.paths.user_data_dir)))
+        named(tr("theme.accent"), check::accent(&c.theme.accent))
+            .or_else(|| named(tr("general.app_id"), check::app_id(&c.client_id)))
+            .or_else(|| named(tr("display.game_icon"), check::image(&c.display.game_icon)))
+            .or_else(|| named(tr("profile.url"), check::url(&c.profile.url)))
+            .or_else(|| named(tr("profile.search"), check::url(&c.profile.search_url)))
+            .or_else(|| named(tr("paths.game"), check::game_folder(&c.paths.game_root)))
+            .or_else(|| {
+                named(
+                    tr("paths.user_data"),
+                    check::user_data(&c.paths.user_data_dir),
+                )
+            })
             .or_else(|| {
                 Phase::ALL.into_iter().find_map(|p| {
                     let cfg = c.phase(p);
                     PhaseField::ALL.into_iter().find_map(|field| {
                         named(
-                            &format!("{} {}", p.label(), field.label()),
+                            &t!(
+                                "phases.field_label",
+                                phase = crate::phase::display(Some(p)),
+                                field = field.label()
+                            ),
                             field.error(field.get(&cfg)),
                         )
                     })
@@ -386,7 +403,7 @@ impl SettingsWindow {
             .then(|| self.path.with_extension("toml.broken"));
         if let Some(kept) = &kept {
             if self.path.exists() && std::fs::rename(&self.path, kept).is_err() {
-                self.message = Some(("Could not set the old Config aside".into(), false));
+                self.message = Some((tr("actions.set_aside_failed").into(), false));
                 return;
             }
         }
@@ -399,10 +416,10 @@ impl SettingsWindow {
                 self.config_mtime = config::mtime(&self.path);
                 match kept.as_ref().and_then(|p| p.file_name()) {
                     Some(name) => Some((
-                        format!("Saved. The old File is kept as {}", name.to_string_lossy()),
+                        t!("actions.saved_kept", file = name.to_string_lossy()).into_owned(),
                         true,
                     )),
-                    None => Some(("Saved".into(), true)),
+                    None => Some((tr("actions.saved").into(), true)),
                 }
             }
             Err(e) => Some((e, false)),
@@ -442,12 +459,7 @@ impl SettingsWindow {
             &disk.characters,
         );
         self.saved = disk;
-        self.message = Some((
-            "The Config changed on Disk. New Names were taken, anything else \
-             there is overwritten by Save"
-                .into(),
-            false,
-        ));
+        self.message = Some((tr("actions.changed_on_disk").into(), false));
     }
 }
 
@@ -596,6 +608,7 @@ fn update(state: &mut SettingsWindow, message: Message) -> Task<Message> {
         state.picker = m3::hsv_of(m3::seed(&state.config));
     }
     state.picker_accent.clone_from(&state.config.theme.accent);
+    lang::apply(&state.config);
     task
 }
 
@@ -708,7 +721,7 @@ fn status_bar(state: &SettingsWindow) -> Element<'_, Message> {
             },
             snapshot.line.clone(),
         ),
-        None => (c.outline, "Tray not running".to_string()),
+        None => (c.outline, tr("status.tray_not_running").to_string()),
     };
 
     container(
@@ -739,7 +752,7 @@ fn actions(state: &SettingsWindow) -> Element<'_, Message> {
             .size(type_scale::BODY_MEDIUM)
             .color(c.error)
             .into(),
-        (None, true, _) => text("Unsaved Changes")
+        (None, true, _) => text(tr("actions.unsaved"))
             .size(type_scale::BODY_MEDIUM)
             .color(c.error)
             .into(),
@@ -754,20 +767,20 @@ fn actions(state: &SettingsWindow) -> Element<'_, Message> {
     if !state.unreadable {
         buttons = buttons.push(m3::plain(
             c,
-            "Discard",
+            tr("actions.discard"),
             dirty.then_some(Message::Act(Action::Discard)),
         ));
     }
     buttons = buttons.push(m3::filled(
         c,
-        "Save",
+        tr("actions.save"),
         (dirty && error.is_none()).then_some(Message::Act(Action::Save)),
     ));
 
     container(
         row![
             container(status).width(Length::Fill),
-            m3::plain(c, "Reset to Defaults", Some(Message::Act(Action::Reset))),
+            m3::plain(c, tr("actions.reset"), Some(Message::Act(Action::Reset))),
             buttons,
         ]
         .spacing(8)

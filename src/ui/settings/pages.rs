@@ -501,7 +501,13 @@ pub(super) fn names(state: &SettingsWindow, table: Table) -> Element<'_, Message
     if let Some(reason) = bad_key {
         page = page.push(text(reason).size(type_scale::BODY_MEDIUM).color(c.error));
     }
-    page.into()
+    page.push(prompt::picker(
+        c,
+        prompt::untaken(&state.known[table as usize], table, &state.config),
+        &pending.1,
+        move |name| Message::TablePendingName(table, name),
+    ))
+    .into()
 }
 
 pub(super) fn phases(state: &SettingsWindow) -> Element<'_, Message> {

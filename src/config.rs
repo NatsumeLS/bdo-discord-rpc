@@ -9,18 +9,6 @@ use crate::phase::Phase;
 const DEFAULT_CLIENT_ID: &str = "1551141273551904848";
 const CONFIG_FILE: &str = "bdo-discord-rpc.toml";
 
-const DEFAULT_SERVERS: &[(&str, &str)] = &[
-    ("game02.sg", "Balenos"),
-    ("game03.sg", "Serendia"),
-    ("game09.sg", "Arsha: Anonymous"),
-    ("game11.sg", "New Olvia (TH)"),
-    ("game12.sg", "Season-1 (TH)"),
-    ("game13.sg", "Season-2 (TH)"),
-    ("game21.sg", "Kamasylvia"),
-    ("game36.sg", "Calpheon"),
-    ("game37.sg", "Odyllita-1"),
-];
-
 const PROFILE_SEARCH_URL: &str =
     "https://blackdesert.pearlabyss.com/Asia/en-US/Game/Profile/Search";
 
@@ -211,10 +199,7 @@ impl Default for Config {
             theme: Theme::default(),
             paths: Paths::default(),
             profile: ProfileConfig::default(),
-            servers: DEFAULT_SERVERS
-                .iter()
-                .map(|(host, name)| (host.to_string(), name.to_string()))
-                .collect(),
+            servers: BTreeMap::new(),
             characters: BTreeMap::new(),
             phases: Phase::ALL
                 .iter()

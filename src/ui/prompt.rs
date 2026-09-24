@@ -52,19 +52,79 @@ const EDGE: u16 = 20;
 const WINDOW: Size = Size::new(480.0, 232.0);
 const PICKER: f32 = 80.0;
 
-fn suggestions(table: Table, config: &Config) -> Vec<String> {
-    if table != Table::Characters {
-        return Vec::new();
+const KNOWN_SERVERS: &[&str] = &[
+    "Season-1 (TH)",
+    "Season-2 (TH)",
+    "Season-1 (SEA)",
+    "Season-2 (SEA)",
+    "New Olvia (TH)",
+    "New Olvia (SEA)",
+    "Odyllita-1",
+    "Arsha",
+    "Arsha: Anonymous",
+    "Velia-1 (TH)",
+    "Velia-2 (TH)",
+    "Velia-1 (SEA)",
+    "Velia-2 (SEA)",
+    "Heidel-1 (TH)",
+    "Heidel-2 (TH)",
+    "Heidel-1 (SEA)",
+    "Heidel-2 (SEA)",
+    "Altinova-1 (TH)",
+    "Altinova-2 (TH)",
+    "Altinova-1 (SEA)",
+    "Altinova-2 (SEA)",
+    "Grana-1 (TH)",
+    "Grana-1 (SEA)",
+    "Calpheon",
+    "Balenos",
+    "Serendia",
+    "Mediah",
+    "Valencia",
+    "Ulukita",
+    "Rulupee-1",
+    "Rulupee-2",
+    "Kamasylvia",
+    "Edania",
+];
+
+pub fn known_names(table: Table) -> Vec<String> {
+    match table {
+        Table::Servers => KNOWN_SERVERS.iter().map(|name| name.to_string()).collect(),
+        Table::Characters => profile::load_cache(&config::profile_cache_path())
+            .map(|cached| cached.characters.into_iter().map(|c| c.name).collect())
+            .unwrap_or_default(),
     }
-    let Some(cached) = profile::load_cache(&config::profile_cache_path()) else {
-        return Vec::new();
-    };
-    cached
-        .characters
+}
+
+pub fn untaken<'a>(
+    known: &'a [String],
+    table: Table,
+    config: &'a Config,
+) -> impl Iterator<Item = &'a String> {
+    let taken = table.entries(config);
+    known
+        .iter()
+        .filter(move |name| !taken.values().any(|used| used == *name))
+}
+
+pub fn picker<'a, M: Clone + 'a>(
+    c: Scheme,
+    names: impl IntoIterator<Item = &'a String>,
+    typed: &str,
+    pick: impl Fn(String) -> M,
+) -> Element<'a, M> {
+    let typed = typed.trim();
+    let lowered = typed.to_lowercase();
+    names
         .into_iter()
-        .map(|c| c.name)
-        .filter(|name| !config.characters.values().any(|taken| taken == name))
-        .collect()
+        .filter(|name| name.to_lowercase().contains(&lowered))
+        .fold(row![].spacing(8), |chips, name| {
+            chips.push(m3::chip(c, name, name == typed, pick(name.clone())))
+        })
+        .wrap()
+        .vertical_spacing(8)
+        .into()
 }
 
 pub fn run(table: Table, key: Option<String>) -> i32 {
@@ -97,7 +157,9 @@ pub fn run(table: Table, key: Option<String>) -> i32 {
         }
     };
 
-    let suggestions = suggestions(table, &config);
+    let suggestions: Vec<String> = untaken(&known_names(table), table, &config)
+        .cloned()
+        .collect();
     let size = if suggestions.is_empty() {
         WINDOW
     } else {
@@ -232,21 +294,7 @@ fn view(state: &Prompt) -> Element<'_, Message> {
     }
 
     if !state.suggestions.is_empty() {
-        let typed = state.name.trim().to_lowercase();
-        let chips = state
-            .suggestions
-            .iter()
-            .filter(|name| name.to_lowercase().contains(&typed))
-            .fold(row![].spacing(8), |chips, name| {
-                chips.push(m3::chip(
-                    c,
-                    name,
-                    *name == state.name.trim(),
-                    Message::Pick(name.clone()),
-                ))
-            })
-            .wrap()
-            .vertical_spacing(8);
+        let chips = picker(c, &state.suggestions, &state.name, Message::Pick);
         body = body.push(
             scrollable(chips)
                 .height(PICKER)

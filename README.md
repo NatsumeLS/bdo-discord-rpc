@@ -31,5 +31,5 @@ Run it and it sits in the system tray. It shows your presence while the game is 
 ## Limits
 
 - It is region specific and only supports the Asia servers.
-- The game only reports server and character IDs, so it asks you to name each new character and any server that is not already named.
+- The game only reports server and character IDs, so it asks you to name each new server and character, and suggests the known names.
 - Start it before entering a character. Otherwise it shows your main character until you switch.

@@ -347,6 +347,13 @@ pub(super) fn display(state: &SettingsWindow) -> Element<'_, Message> {
             "Square PNG, JPEG, WebP or GIF URL",
             check::image,
         ),
+        field(
+            state,
+            "Unknown Text",
+            lens!(display.unknown),
+            "Shows Nothing",
+            |_| None,
+        ),
     ]
     .spacing(18)
     .into()

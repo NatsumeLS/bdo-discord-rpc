@@ -46,7 +46,7 @@ pub fn context(
         None => main,
     };
     let known = |value: Option<String>| match detected {
-        Some(_) => value.unwrap_or_else(|| UNKNOWN.to_string()),
+        Some(_) => value.unwrap_or_else(|| config.display.unknown.clone()),
         None => value.unwrap_or_default(),
     };
 
@@ -114,7 +114,6 @@ pub struct PresenceFields {
 }
 
 const GAME_NAME: &str = "Black Desert";
-pub const UNKNOWN: &str = "Unknown";
 pub const BUTTON_LABEL_MAX: usize = 32;
 pub const BUTTON_URL_MAX: usize = 512;
 

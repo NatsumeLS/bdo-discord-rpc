@@ -54,6 +54,7 @@ pub struct Display {
     pub show_region: bool,
     pub timer_mode: String,
     pub game_icon: String,
+    pub unknown: String,
 }
 
 #[derive(Serialize, Deserialize, Clone, PartialEq)]
@@ -124,6 +125,7 @@ impl Default for Display {
             show_region: true,
             timer_mode: "session".into(),
             game_icon: GAME_ICON.into(),
+            unknown: "Unknown".into(),
         }
     }
 }

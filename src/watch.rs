@@ -13,7 +13,7 @@ use crate::read::game::{self, GameFinder, GameProcess};
 use crate::read::log_tail::{GameState, LogTail};
 use crate::read::profile::{self, Profile};
 use crate::show::discord::Presence;
-use crate::show::presence::{build, context, PresenceFields, UNKNOWN};
+use crate::show::presence::{build, context, PresenceFields};
 use crate::ui::tray::Health;
 use crate::win::{self, log};
 
@@ -749,7 +749,7 @@ impl<'a> Watcher<'a> {
                     .characters
                     .get(key)
                     .cloned()
-                    .unwrap_or_else(|| UNKNOWN.to_string()),
+                    .unwrap_or_else(|| self.config.display.unknown.clone()),
             ),
             None => self
                 .derived

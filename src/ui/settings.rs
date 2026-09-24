@@ -125,6 +125,7 @@ pub enum Page {
     Characters,
     Phases,
     Log,
+    Placeholders,
     About,
 }
 
@@ -138,13 +139,19 @@ impl Page {
         ("rail.names", &[Page::Servers, Page::Characters]),
         (
             "rail.app",
-            &[Page::General, Page::Theme, Page::Paths, Page::About],
+            &[
+                Page::General,
+                Page::Theme,
+                Page::Paths,
+                Page::Placeholders,
+                Page::About,
+            ],
         ),
     ];
 
     fn dirty(self, config: &Config, saved: &Config, no_baseline: bool) -> bool {
         match self {
-            Page::Overview | Page::Log | Page::About => false,
+            Page::Overview | Page::Log | Page::Placeholders | Page::About => false,
             _ if no_baseline => true,
             Page::General => {
                 config.enabled != saved.enabled
@@ -180,6 +187,7 @@ impl Page {
             Page::Characters => "page.characters",
             Page::Phases => "page.phases",
             Page::Log => "page.log",
+            Page::Placeholders => "page.placeholders",
             Page::About => "page.about",
         })
     }
@@ -637,7 +645,7 @@ fn rail(state: &SettingsWindow) -> Element<'_, Message> {
                         .color(c.primary),
                 )
                 .padding(iced::Padding {
-                    top: if index == 0 { 4.0 } else { 16.0 },
+                    top: if index == 0 { 4.0 } else { 8.0 },
                     right: 20.0,
                     bottom: 4.0,
                     left: 20.0,
@@ -710,6 +718,7 @@ fn page(state: &SettingsWindow) -> Element<'_, Message> {
         Page::Characters => pages::names(state, Table::Characters),
         Page::Phases => pages::phases(state),
         Page::Log => pages::log_page(state),
+        Page::Placeholders => pages::placeholders(state),
         Page::About => pages::about(state),
     };
 

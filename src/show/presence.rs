@@ -133,43 +133,51 @@ fn button(label: &str, url: &str, ctx: &Context) -> Option<(String, String)> {
     (fits && is_button_url(&url)).then_some((label, url))
 }
 
-pub type Placeholder = (&'static str, fn(&Context) -> &str);
+pub struct Placeholder {
+    pub group: &'static str,
+    pub name: &'static str,
+    pub value: fn(&Context) -> &str,
+}
+
+const fn p(group: &'static str, name: &'static str, value: fn(&Context) -> &str) -> Placeholder {
+    Placeholder { group, name, value }
+}
 
 pub const PLACEHOLDERS: &[Placeholder] = &[
-    ("family", |c| &c.family),
-    ("region", |c| &c.region),
-    ("server", |c| &c.server),
-    ("phase", |c| &c.phase),
-    ("character", |c| &c.character),
-    ("class", |c| &c.class),
-    ("level", |c| &c.level),
-    ("class_image", |c| &c.class_image),
-    ("main_character", |c| &c.main_character),
-    ("main_class", |c| &c.main_class),
-    ("main_class_image", |c| &c.main_class_image),
-    ("main_level", |c| &c.main_level),
-    ("guild", |c| &c.guild),
-    ("gear_score", |c| &c.gear_score),
-    ("energy", |c| &c.energy),
-    ("contribution", |c| &c.contribution),
-    ("profile_url", |c| &c.profile_url),
-    ("family_created", |c| &c.family_created),
+    p("session", "family", |c| &c.family),
+    p("session", "region", |c| &c.region),
+    p("session", "server", |c| &c.server),
+    p("session", "phase", |c| &c.phase),
+    p("character", "character", |c| &c.character),
+    p("character", "class", |c| &c.class),
+    p("character", "level", |c| &c.level),
+    p("character", "class_image", |c| &c.class_image),
+    p("main", "main_character", |c| &c.main_character),
+    p("main", "main_class", |c| &c.main_class),
+    p("main", "main_level", |c| &c.main_level),
+    p("main", "main_class_image", |c| &c.main_class_image),
+    p("main", "energy", |c| &c.energy),
+    p("profile", "guild", |c| &c.guild),
+    p("profile", "gear_score", |c| &c.gear_score),
+    p("profile", "contribution", |c| &c.contribution),
+    p("profile", "family_created", |c| &c.family_created),
+    p("profile", "profile_url", |c| &c.profile_url),
     // In `LIFE_SKILLS` order, which is what the index refers to.
-    ("gathering", |c| &c.life_skills[0]),
-    ("fishing", |c| &c.life_skills[1]),
-    ("hunting", |c| &c.life_skills[2]),
-    ("cooking", |c| &c.life_skills[3]),
-    ("alchemy", |c| &c.life_skills[4]),
-    ("processing", |c| &c.life_skills[5]),
-    ("training", |c| &c.life_skills[6]),
-    ("trading", |c| &c.life_skills[7]),
-    ("farming", |c| &c.life_skills[8]),
-    ("sailing", |c| &c.life_skills[9]),
-    ("barter", |c| &c.life_skills[10]),
+    p("life", "gathering", |c| &c.life_skills[0]),
+    p("life", "fishing", |c| &c.life_skills[1]),
+    p("life", "hunting", |c| &c.life_skills[2]),
+    p("life", "cooking", |c| &c.life_skills[3]),
+    p("life", "alchemy", |c| &c.life_skills[4]),
+    p("life", "processing", |c| &c.life_skills[5]),
+    p("life", "training", |c| &c.life_skills[6]),
+    p("life", "trading", |c| &c.life_skills[7]),
+    p("life", "farming", |c| &c.life_skills[8]),
+    p("life", "sailing", |c| &c.life_skills[9]),
+    p("life", "barter", |c| &c.life_skills[10]),
 ];
 
 pub fn is_placeholder(name: &str) -> bool {
-    PLACEHOLDERS.iter().any(|&(known, _)| known == name)
+    PLACEHOLDERS.iter().any(|known| known.name == name)
 }
 
 pub fn expand(template: &str, ctx: &Context) -> String {
@@ -187,8 +195,8 @@ pub fn expand(template: &str, ctx: &Context) -> String {
         };
 
         let name = &after[1..close];
-        match PLACEHOLDERS.iter().find(|&&(known, _)| known == name) {
-            Some((_, value)) => out.push_str(value(ctx)),
+        match PLACEHOLDERS.iter().find(|known| known.name == name) {
+            Some(known) => out.push_str((known.value)(ctx)),
             None => out.push_str(&after[..=close]),
         }
         rest = &after[close + 1..];

@@ -11,6 +11,7 @@ use super::controls::{
 use super::{check, Message, PhaseField, SettingsWindow, KEY_WIDTH};
 use crate::config::{self, Table};
 use crate::phase::Phase;
+use crate::read::profile::LIFE_SKILLS;
 use crate::show::presence::PLACEHOLDERS;
 use crate::ui::lang::{self, tr};
 use crate::ui::m3::{self, shape, type_scale};
@@ -97,6 +98,67 @@ pub(super) fn about(state: &SettingsWindow) -> Element<'_, Message> {
 }
 
 const LIBRARIES: &[(&str, &str)] = include!(concat!(env!("OUT_DIR"), "/libraries.rs"));
+
+pub(super) fn placeholders(state: &SettingsWindow) -> Element<'_, Message> {
+    let c = state.scheme();
+    let values = state.tray.snapshot.as_ref().map(|s| &s.placeholders);
+    let meaning = |name: &str| match LIFE_SKILLS
+        .iter()
+        .find(|skill| skill.eq_ignore_ascii_case(name))
+    {
+        Some(_) => t!(
+            "placeholders.life_skill",
+            skill = tr(&format!("life.{name}"))
+        )
+        .into_owned(),
+        None => tr(&format!("placeholders.{name}")).to_string(),
+    };
+
+    let mut page = column![note(
+        state,
+        tr(match values {
+            Some(_) => "placeholders.note",
+            None => "placeholders.note_no_tray",
+        })
+    )]
+    .spacing(20);
+    for (group, members) in PLACEHOLDERS
+        .chunk_by(|a, b| a.group == b.group)
+        .map(|run| (run[0].group, run))
+    {
+        let mut rows =
+            column![heading(state, tr(&format!("placeholders.group_{group}")))].spacing(6);
+        for placeholder in members {
+            let value = values
+                .and_then(|v| v.get(placeholder.name))
+                .cloned()
+                .unwrap_or_default();
+            rows = rows.push(
+                row![
+                    container(
+                        text(format!("{{{}}}", placeholder.name))
+                            .size(type_scale::BODY_MEDIUM)
+                            .color(c.primary)
+                    )
+                    .width(Length::Fixed(200.0)),
+                    container(
+                        text(meaning(placeholder.name))
+                            .size(type_scale::BODY_MEDIUM)
+                            .color(c.on_surface_variant)
+                    )
+                    .width(Length::Fixed(220.0)),
+                    text(value)
+                        .size(type_scale::BODY_MEDIUM)
+                        .color(c.on_surface)
+                        .width(Length::Fill),
+                ]
+                .spacing(12),
+            );
+        }
+        page = page.push(rows);
+    }
+    page.into()
+}
 
 pub(super) fn overview(state: &SettingsWindow) -> Element<'_, Message> {
     let Some(snapshot) = state.tray.snapshot.as_ref() else {
@@ -641,17 +703,8 @@ pub(super) fn phases(state: &SettingsWindow) -> Element<'_, Message> {
         ));
     }
 
-    let placeholders = PLACEHOLDERS
-        .iter()
-        .map(|(name, _)| format!("{{{name}}}"))
-        .collect::<Vec<_>>()
-        .join(" ");
-
     column![
-        note(
-            state,
-            t!("phases.placeholders", list = placeholders).into_owned()
-        ),
+        note(state, tr("phases.placeholders")),
         note(state, tr("phases.buttons_note")),
         chips,
         divider(state),

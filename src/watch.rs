@@ -1,4 +1,4 @@
-use std::collections::HashSet;
+use std::collections::{BTreeMap, HashSet};
 use std::path::{Path, PathBuf};
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::Mutex;
@@ -14,7 +14,7 @@ use crate::read::log_tail::{GameState, LogTail};
 use crate::read::profile::{self, Profile, LIFE_SKILLS};
 use crate::region;
 use crate::show::discord::Presence;
-use crate::show::presence::{build, context, PresenceFields};
+use crate::show::presence::{build, context, PresenceFields, PLACEHOLDERS};
 use crate::ui::lang::tr;
 use crate::ui::tray::Health;
 use crate::win::{self, log};
@@ -93,6 +93,8 @@ pub struct Snapshot {
     pub groups: Vec<Group>,
     #[serde(default)]
     pub service: Option<String>,
+    #[serde(default)]
+    pub placeholders: BTreeMap<String, String>,
 }
 
 #[derive(Serialize, Deserialize, PartialEq)]
@@ -805,6 +807,20 @@ impl<'a> Watcher<'a> {
             health: status.health,
             line: status.line.clone(),
             service: game.and_then(|g| g.service.clone()),
+            placeholders: {
+                let ctx = context(
+                    config,
+                    stable,
+                    self.derived.family.as_deref(),
+                    &self.region().unwrap_or_default(),
+                    self.session.character.as_deref(),
+                    profile,
+                );
+                PLACEHOLDERS
+                    .iter()
+                    .map(|p| (p.name.to_string(), (p.value)(&ctx).to_string()))
+                    .collect()
+            },
             groups: vec![
                 group(
                     tr("overview.game"),
@@ -873,14 +889,14 @@ impl<'a> Watcher<'a> {
                             tr("overview.main"),
                             profile.and_then(Profile::main).map(describe),
                         ),
+                        row(
+                            tr("overview.main_energy"),
+                            profile.and_then(|p| p.energy.clone()),
+                        ),
                         row(tr("overview.guild"), profile.and_then(|p| p.guild.clone())),
                         row(
                             tr("overview.gear_score"),
                             profile.and_then(|p| p.gear_score.clone()),
-                        ),
-                        row(
-                            tr("overview.energy"),
-                            profile.and_then(|p| p.energy.clone()),
                         ),
                         row(
                             tr("overview.contribution"),

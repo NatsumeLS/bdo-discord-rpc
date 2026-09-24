@@ -6,8 +6,7 @@ use iced::widget::{
 use iced::{border, gradient, Background, Color, Element, Length, Radians};
 
 use super::controls::{
-    dial, divider, dot, field, field_with, icon_button, marked, note, scroll_style, switch,
-    switch_with,
+    dial, divider, dot, field, field_with, icon_button, marked, note, switch, switch_with,
 };
 use super::{check, Message, PhaseField, SettingsWindow, KEY_WIDTH};
 use crate::config::{self, Table};
@@ -612,7 +611,7 @@ pub(super) fn log_page(state: &SettingsWindow) -> Element<'_, Message> {
             scrollable(lines)
                 .anchor_bottom()
                 .height(Length::Fill)
-                .style(move |_theme, status| scroll_style(c, status)),
+                .style(move |_theme, status| m3::scroll_style(c, status)),
         )
         .padding(16)
         .width(Length::Fill)

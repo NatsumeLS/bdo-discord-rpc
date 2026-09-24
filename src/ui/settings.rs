@@ -41,7 +41,7 @@ mod check;
 mod controls;
 mod pages;
 
-use controls::{dot, scroll_style};
+use controls::dot;
 
 const WINDOW: Size = Size::new(960.0, 800.0);
 const RAIL_WIDTH: f32 = 232.0;
@@ -683,7 +683,7 @@ fn page(state: &SettingsWindow) -> Element<'_, Message> {
         column![
             scrollable(container(content).padding(EDGE))
                 .height(Length::Fill)
-                .style(move |_theme, status| scroll_style(c, status)),
+                .style(move |_theme, status| m3::scroll_style(c, status)),
             actions(state),
         ]
         .width(Length::Fill),

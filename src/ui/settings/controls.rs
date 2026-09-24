@@ -1,7 +1,5 @@
-use iced::widget::{
-    button, column, container, row, scrollable, slider, text, text_input, toggler, Space,
-};
-use iced::{border, Background, Color, Element, Length, Shadow};
+use iced::widget::{button, column, container, row, slider, text, text_input, toggler, Space};
+use iced::{border, Background, Color, Element, Length};
 
 use super::{Lens, Message, SettingsWindow};
 use crate::ui::m3::{self, shape, type_scale, Scheme};
@@ -31,46 +29,6 @@ pub(super) fn marked<'a>(
         .spacing(10)
         .align_y(iced::Alignment::Start)
         .into()
-}
-
-pub(super) fn scroll_style(c: Scheme, status: scrollable::Status) -> scrollable::Style {
-    let hovered = match status {
-        scrollable::Status::Hovered {
-            is_vertical_scrollbar_hovered,
-            is_horizontal_scrollbar_hovered,
-            ..
-        } => is_vertical_scrollbar_hovered || is_horizontal_scrollbar_hovered,
-        scrollable::Status::Dragged { .. } => true,
-        _ => false,
-    };
-
-    let rail = scrollable::Rail {
-        background: Some(Background::Color(c.surface_container)),
-        border: border::rounded(shape::FULL),
-        scroller: scrollable::Scroller {
-            background: Background::Color(if hovered {
-                c.on_surface_variant
-            } else {
-                c.outline
-            }),
-            border: border::rounded(shape::FULL),
-        },
-    };
-
-    scrollable::Style {
-        container: container::Style::default(),
-        vertical_rail: rail,
-        horizontal_rail: rail,
-        gap: None,
-        auto_scroll: scrollable::AutoScroll {
-            background: Background::Color(c.surface_container_high),
-            border: border::rounded(shape::FULL)
-                .color(c.outline_variant)
-                .width(1.0),
-            shadow: Shadow::default(),
-            icon: c.on_surface_variant,
-        },
-    }
 }
 
 pub(super) fn divider(state: &SettingsWindow) -> Element<'_, Message> {

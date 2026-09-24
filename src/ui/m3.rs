@@ -1,7 +1,7 @@
 use std::collections::BTreeMap;
 use std::sync::Mutex;
 
-use iced::widget::{button, text, text_input};
+use iced::widget::{button, container, scrollable, text, text_input};
 use iced::{border, Background, Border, Color, Element, Shadow, Vector};
 use material_color_rs::dynamiccolor::MaterialDynamicColors as Roles;
 use material_color_rs::{DynamicScheme, Hct, TonalPalette, Variant};
@@ -457,6 +457,46 @@ pub fn chip<'a, M: Clone + 'a>(
             }
         })
         .into()
+}
+
+pub fn scroll_style(c: Scheme, status: scrollable::Status) -> scrollable::Style {
+    let hovered = match status {
+        scrollable::Status::Hovered {
+            is_vertical_scrollbar_hovered,
+            is_horizontal_scrollbar_hovered,
+            ..
+        } => is_vertical_scrollbar_hovered || is_horizontal_scrollbar_hovered,
+        scrollable::Status::Dragged { .. } => true,
+        _ => false,
+    };
+
+    let rail = scrollable::Rail {
+        background: Some(Background::Color(c.surface_container)),
+        border: border::rounded(shape::FULL),
+        scroller: scrollable::Scroller {
+            background: Background::Color(if hovered {
+                c.on_surface_variant
+            } else {
+                c.outline
+            }),
+            border: border::rounded(shape::FULL),
+        },
+    };
+
+    scrollable::Style {
+        container: container::Style::default(),
+        vertical_rail: rail,
+        horizontal_rail: rail,
+        gap: None,
+        auto_scroll: scrollable::AutoScroll {
+            background: Background::Color(c.surface_container_high),
+            border: border::rounded(shape::FULL)
+                .color(c.outline_variant)
+                .width(1.0),
+            shadow: Shadow::default(),
+            icon: c.on_surface_variant,
+        },
+    }
 }
 
 pub mod shape {

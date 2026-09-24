@@ -1,0 +1,54 @@
+[package]
+name = "bdo-discord-rpc"
+version = "0.1.0"
+edition = "2021"
+description = "Discord Rich Presence for Black Desert, driven by the files the client already writes"
+license = "MIT"
+authors = ["NatsumeLS"]
+
+[dependencies]
+chrono = { version = "0.4", default-features = false, features = ["clock", "std"] }
+dirs = "5"
+serde = { version = "1", features = ["derive"] }
+toml = "0.8"
+discord-rich-presence = "1.1"
+scraper = "0.21"
+serde_json = "1"
+ureq = "2"
+tray-icon = "0.25"
+iced = { version = "0.14", default-features = false, features = [
+    "tiny-skia",
+    "thread-pool",
+    "image-without-codecs",
+] }
+material-color-rs = "0.1"
+png = "0.17"
+
+[dependencies.windows-sys]
+version = "0.59"
+features = [
+    "Win32_Foundation",
+    "Win32_System_Diagnostics_ToolHelp",
+    "Win32_System_Threading",
+    "Win32_System_Console",
+    "Win32_System_Registry",
+    "Win32_UI_WindowsAndMessaging",
+    "Win32_Security",
+]
+
+[build-dependencies]
+serde_json = "1"
+winresource = "0.1"
+
+[profile.dev]
+debug = "line-tables-only"
+
+[profile.dev.package."*"]
+opt-level = 3
+
+[profile.release]
+opt-level = "z"
+lto = true
+codegen-units = 1
+strip = true
+panic = "abort"

@@ -48,6 +48,10 @@ impl Profile {
             .find(|c| c.is_main)
             .or_else(|| self.characters.first())
     }
+
+    pub fn character(&self, name: &str) -> Option<&Character> {
+        self.characters.iter().find(|c| c.name == name)
+    }
 }
 
 fn agent() -> ureq::Agent {

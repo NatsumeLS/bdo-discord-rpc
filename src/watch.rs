@@ -13,7 +13,7 @@ use crate::read::game::{self, GameFinder, GameProcess};
 use crate::read::log_tail::{GameState, LogTail};
 use crate::read::profile::{self, Profile};
 use crate::show::discord::Presence;
-use crate::show::presence::{build, context, PresenceFields};
+use crate::show::presence::{build, context, PresenceFields, UNKNOWN};
 use crate::ui::tray::Health;
 use crate::win::{self, log};
 
@@ -240,6 +240,7 @@ struct Derived {
     last_family_check: Option<Instant>,
     profile: Option<Profile>,
     profile_url: Option<String>,
+    unmatched: Option<String>,
     last_sent: Option<PresenceFields>,
 }
 
@@ -447,6 +448,7 @@ impl<'a> Watcher<'a> {
         self.read_family();
         self.read_character();
         self.read_profile();
+        self.check_name();
         self.connect();
         self.debounce();
         self.ask_names();
@@ -578,6 +580,32 @@ impl<'a> Watcher<'a> {
                 win::warn(&format!("Profile: Retrying in {wait}s"));
             }
         }
+    }
+
+    fn check_name(&mut self) {
+        let listed = |name: &String| {
+            self.derived
+                .profile
+                .as_ref()
+                .is_none_or(|p| p.characters.is_empty() || p.character(name).is_some())
+        };
+        let unmatched = self
+            .session
+            .character
+            .as_ref()
+            .filter(|_| self.config.identity.show_character)
+            .and_then(|key| self.config.characters.get(key))
+            .filter(|name| !listed(name))
+            .cloned();
+        if unmatched == self.derived.unmatched {
+            return;
+        }
+        if let Some(name) = &unmatched {
+            win::warn(&format!(
+                "Character: {name} is not on the Profile, showing Unknown Class and Level with the Game Icon"
+            ));
+        }
+        self.derived.unmatched = unmatched;
     }
 
     fn connect(&mut self) {
@@ -715,18 +743,21 @@ impl<'a> Watcher<'a> {
         if let Some(family) = &self.derived.family {
             parts.push(family.clone());
         }
-        let who = self
-            .session
-            .character
-            .as_ref()
-            .and_then(|key| self.config.characters.get(key).cloned())
-            .or_else(|| {
-                self.derived
-                    .profile
-                    .as_ref()
-                    .and_then(Profile::main)
-                    .map(|m| m.name.clone())
-            });
+        let who = match &self.session.character {
+            Some(key) => Some(
+                self.config
+                    .characters
+                    .get(key)
+                    .cloned()
+                    .unwrap_or_else(|| UNKNOWN.to_string()),
+            ),
+            None => self
+                .derived
+                .profile
+                .as_ref()
+                .and_then(Profile::main)
+                .map(|m| m.name.clone()),
+        };
         if let Some(who) = who {
             parts.push(who);
         }
@@ -778,6 +809,9 @@ impl<'a> Watcher<'a> {
                             "Character",
                             self.session.character.as_deref().map(|key| {
                                 match config.characters.get(key) {
+                                    Some(name) if self.derived.unmatched.as_ref() == Some(name) => {
+                                        format!("{key} ({name}, not on the Profile)")
+                                    }
                                     Some(name) => format!("{key} ({name})"),
                                     None => format!("{key} (unnamed)"),
                                 }

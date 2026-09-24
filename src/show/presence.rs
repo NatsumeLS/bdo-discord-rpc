@@ -34,16 +34,21 @@ pub fn context(
     let main = profile.and_then(Profile::main);
     let text = |value: Option<&String>| value.cloned().unwrap_or_default();
 
-    let named = config
+    // A detected character never borrows the main's details, it reads as Unknown.
+    let detected = config
         .identity
         .show_character
         .then_some(character)
-        .flatten()
-        .and_then(|key| config.characters.get(key));
-
-    let current = named
-        .and_then(|name| profile.and_then(|p| p.characters.iter().find(|c| c.name == *name)))
-        .or(main);
+        .flatten();
+    let named = detected.and_then(|key| config.characters.get(key));
+    let current = match detected {
+        Some(_) => named.and_then(|name| profile.and_then(|p| p.character(name))),
+        None => main,
+    };
+    let known = |value: Option<String>| match detected {
+        Some(_) => value.unwrap_or_else(|| UNKNOWN.to_string()),
+        None => value.unwrap_or_default(),
+    };
 
     Context {
         family: if config.identity.show_family {
@@ -64,19 +69,15 @@ pub fn context(
             _ => String::new(),
         },
         phase: state.phase.map(|p| p.key().to_string()).unwrap_or_default(),
-        character: if config.identity.show_character {
-            named
-                .cloned()
-                .or_else(|| main.map(|c| c.name.clone()))
-                .unwrap_or_default()
-        } else {
-            String::new()
+        character: match detected {
+            Some(_) => known(named.cloned()),
+            None if config.identity.show_character => {
+                main.map(|c| c.name.clone()).unwrap_or_default()
+            }
+            None => String::new(),
         },
-        class: current.map(|c| c.class.clone()).unwrap_or_default(),
-        level: current
-            .and_then(|c| c.level)
-            .map(|l| l.to_string())
-            .unwrap_or_default(),
+        class: known(current.map(|c| c.class.clone()).filter(|c| !c.is_empty())),
+        level: known(current.and_then(|c| c.level).map(|l| l.to_string())),
         class_image: current
             .and_then(|c| c.class_image.clone())
             .unwrap_or_default(),
@@ -113,6 +114,7 @@ pub struct PresenceFields {
 }
 
 const GAME_NAME: &str = "Black Desert";
+pub const UNKNOWN: &str = "Unknown";
 pub const BUTTON_LABEL_MAX: usize = 32;
 pub const BUTTON_URL_MAX: usize = 512;
 

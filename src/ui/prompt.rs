@@ -36,7 +36,7 @@ fn intro(table: Table, key: &str) -> String {
 pub fn explain(table: Table) -> &'static str {
     match table {
         Table::Servers => "An unnamed Server shows its Key.",
-        Table::Characters => "An unnamed Character shows your Main Character.",
+        Table::Characters => "An unnamed Character shows as Unknown.",
     }
 }
 

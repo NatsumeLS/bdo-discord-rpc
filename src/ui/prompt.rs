@@ -1,4 +1,7 @@
+use std::collections::BTreeMap;
 use std::path::PathBuf;
+
+use serde::Deserialize;
 
 use iced::widget::{column, container, operation, row, scrollable, text, text_input, Space};
 use iced::{Element, Length, Size, Task};
@@ -52,16 +55,25 @@ const EDGE: u16 = 20;
 const WINDOW: Size = Size::new(480.0, 232.0);
 const PICKER: f32 = 80.0;
 
-const KNOWN_SERVERS: &str = include_str!("../../assets/servers.txt");
+const KNOWN_SERVERS: &str = include_str!("../../assets/servers.toml");
+const SERVICE: &str = "ASIA";
+
+#[derive(Deserialize)]
+struct Service {
+    servers: Vec<String>,
+}
+
+fn known_servers(service: &str) -> Vec<String> {
+    toml::from_str::<BTreeMap<String, Service>>(KNOWN_SERVERS)
+        .ok()
+        .and_then(|mut services| services.remove(service))
+        .map(|found| found.servers)
+        .unwrap_or_default()
+}
 
 pub fn known_names(table: Table) -> Vec<String> {
     match table {
-        Table::Servers => KNOWN_SERVERS
-            .lines()
-            .map(str::trim)
-            .filter(|name| !name.is_empty())
-            .map(str::to_string)
-            .collect(),
+        Table::Servers => known_servers(SERVICE),
         Table::Characters => profile::load_cache(&config::profile_cache_path())
             .map(|cached| cached.characters.into_iter().map(|c| c.name).collect())
             .unwrap_or_default(),

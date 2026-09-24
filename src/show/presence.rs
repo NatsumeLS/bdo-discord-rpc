@@ -1,6 +1,6 @@
 use crate::config::Config;
 use crate::read::log_tail::GameState;
-use crate::read::profile::Profile;
+use crate::read::profile::{Profile, LIFE_SKILLS};
 
 pub struct Context {
     pub family: String,
@@ -21,6 +21,8 @@ pub struct Context {
     pub energy: String,
     pub contribution: String,
     pub profile_url: String,
+    pub family_created: String,
+    pub life_skills: [String; 11],
 }
 
 pub fn context(
@@ -98,6 +100,8 @@ pub fn context(
         energy: text(profile.and_then(|p| p.energy.as_ref())),
         contribution: text(profile.and_then(|p| p.contribution.as_ref())),
         profile_url: text(profile.and_then(|p| p.url.as_ref())),
+        family_created: profile.and_then(Profile::created_date).unwrap_or_default(),
+        life_skills: LIFE_SKILLS.map(|skill| text(profile.and_then(|p| p.life_skills.get(skill)))),
     }
 }
 
@@ -149,6 +153,19 @@ pub const PLACEHOLDERS: &[Placeholder] = &[
     ("energy", |c| &c.energy),
     ("contribution", |c| &c.contribution),
     ("profile_url", |c| &c.profile_url),
+    ("family_created", |c| &c.family_created),
+    // In `LIFE_SKILLS` order, which is what the index refers to.
+    ("gathering", |c| &c.life_skills[0]),
+    ("fishing", |c| &c.life_skills[1]),
+    ("hunting", |c| &c.life_skills[2]),
+    ("cooking", |c| &c.life_skills[3]),
+    ("alchemy", |c| &c.life_skills[4]),
+    ("processing", |c| &c.life_skills[5]),
+    ("training", |c| &c.life_skills[6]),
+    ("trading", |c| &c.life_skills[7]),
+    ("farming", |c| &c.life_skills[8]),
+    ("sailing", |c| &c.life_skills[9]),
+    ("barter", |c| &c.life_skills[10]),
 ];
 
 pub fn is_placeholder(name: &str) -> bool {

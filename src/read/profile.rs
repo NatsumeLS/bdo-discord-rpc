@@ -1,3 +1,4 @@
+use std::collections::BTreeMap;
 use std::path::Path;
 use std::time::Duration;
 
@@ -18,13 +19,31 @@ pub struct Character {
     pub class_image: Option<String>,
 }
 
+// The page's own English names, in the page's order.
+pub const LIFE_SKILLS: [&str; 11] = [
+    "Gathering",
+    "Fishing",
+    "Hunting",
+    "Cooking",
+    "Alchemy",
+    "Processing",
+    "Training",
+    "Trading",
+    "Farming",
+    "Sailing",
+    "Barter",
+];
+
 #[derive(Serialize, Deserialize, Default)]
+#[serde(default)]
 pub struct Profile {
     pub family: Option<String>,
     pub guild: Option<String>,
     pub gear_score: Option<String>,
     pub energy: Option<String>,
     pub contribution: Option<String>,
+    pub created: Option<String>,
+    pub life_skills: BTreeMap<String, String>,
     pub characters: Vec<Character>,
     pub url: Option<String>,
     pub fetched_at: i64,
@@ -51,6 +70,17 @@ impl Profile {
 
     pub fn character(&self, name: &str) -> Option<&Character> {
         self.characters.iter().find(|c| c.name == name)
+    }
+
+    // "Nov 10, 2023, 18:53 (UTC+8)" reads as "Nov 10, 2023".
+    pub fn created_date(&self) -> Option<String> {
+        let created = self.created.as_deref()?;
+        let mut parts = created.splitn(3, ", ");
+        let day = parts.next()?;
+        Some(match parts.next() {
+            Some(year) => format!("{day}, {year}"),
+            None => day.to_string(),
+        })
     }
 }
 
@@ -172,6 +202,27 @@ pub fn parse(html: &str) -> Profile {
     profile.energy = stat(&doc, "Energy");
     profile.contribution = stat(&doc, "Max Contribution Points");
     profile.guild = stat(&doc, "Joined Guild");
+    profile.created = stat(&doc, "Family Created On");
+
+    if let (Ok(skills), Ok(level)) = (
+        Selector::parse("ul.character_spec > li"),
+        Selector::parse("span.spec_level"),
+    ) {
+        for item in doc.select(&skills) {
+            let Some(name) = text_of(item, "span.spec_name") else {
+                continue;
+            };
+            // "Skilled<em>9</em>" has no space of its own between the two.
+            let grade = item
+                .select(&level)
+                .next()
+                .map(|found| collapse(&found.text().collect::<Vec<_>>().join(" ")))
+                .filter(|text| !text.is_empty());
+            if let Some(grade) = grade {
+                profile.life_skills.insert(name, grade);
+            }
+        }
+    }
 
     profile
 }

@@ -11,7 +11,7 @@ use crate::config::{self, Config, Table};
 use crate::phase::{self, Phase};
 use crate::read::game::{self, GameFinder, GameProcess};
 use crate::read::log_tail::{GameState, LogTail};
-use crate::read::profile::{self, Profile};
+use crate::read::profile::{self, Profile, LIFE_SKILLS};
 use crate::region;
 use crate::show::discord::Presence;
 use crate::show::presence::{build, context, PresenceFields};
@@ -865,10 +865,26 @@ impl<'a> Watcher<'a> {
                             profile.and_then(|p| p.gear_score.clone()),
                         ),
                         row(
+                            tr("overview.family_created"),
+                            profile.and_then(|p| p.created.clone()),
+                        ),
+                        row(
                             tr("overview.profile_fetched"),
                             stamp(profile.map(|p| p.fetched_at)),
                         ),
                     ],
+                ),
+                group(
+                    tr("overview.life_skills"),
+                    LIFE_SKILLS
+                        .iter()
+                        .map(|skill| {
+                            row(
+                                tr(&format!("life.{}", skill.to_lowercase())),
+                                profile.and_then(|p| p.life_skills.get(*skill).cloned()),
+                            )
+                        })
+                        .collect(),
                 ),
             ],
         }

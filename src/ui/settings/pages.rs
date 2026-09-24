@@ -104,7 +104,7 @@ pub(super) fn overview(state: &SettingsWindow) -> Element<'_, Message> {
     };
 
     let mut page = column![].spacing(20);
-    for group in &snapshot.groups {
+    for group in snapshot.groups.iter().filter(|g| !g.rows.is_empty()) {
         let mut rows = column![heading(state, &group.title)].spacing(6);
         for (label, value) in &group.rows {
             rows = rows.push(pair(state, label, value.clone()));

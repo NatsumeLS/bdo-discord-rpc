@@ -28,8 +28,17 @@ Run it and it sits in the system tray. It shows your presence while the game is 
 - Right-click it for **Run at Startup**, **Reload Config** and **Quit**.
 - The icon is gray when the game is not running, amber when Discord is not connected or the config has an error, and green when the presence is live.
 
+## Regions
+
+| Region | Status |
+| --- | --- |
+| Asia (TH/SEA) | Supported |
+| NA/EU/OC, South America, Korea, Japan, Taiwan/Hong Kong/Macau, Russian-speaking, Turkey/MENA | Not yet |
+| Console (Xbox/PS) | Not possible, there is no PC client to read |
+
+In a region that is not yet supported, the presence should still work, without that region's server names or anything from the Adventurer Profile. Nothing has been tested there.
+
 ## Limits
 
-- It is region specific and only supports the Asia servers.
 - The game only reports server and character IDs, so it asks you to name each new server and character, and suggests the known names.
 - Start it before entering a character. Otherwise it shows your main character until you switch.

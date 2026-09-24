@@ -1,9 +1,10 @@
 use std::path::PathBuf;
 
-use iced::widget::{column, container, operation, row, text, text_input, Space};
+use iced::widget::{column, container, operation, row, scrollable, text, text_input, Space};
 use iced::{Element, Length, Size, Task};
 
 use crate::config::{self, Config, Table};
+use crate::read::profile;
 use crate::ui::m3::{self, type_scale, Scheme};
 
 pub fn flag(table: Table) -> &'static str {
@@ -49,6 +50,22 @@ pub fn hint(table: Table) -> &'static str {
 
 const EDGE: u16 = 20;
 const WINDOW: Size = Size::new(480.0, 232.0);
+const PICKER: f32 = 80.0;
+
+fn suggestions(table: Table, config: &Config) -> Vec<String> {
+    if table != Table::Characters {
+        return Vec::new();
+    }
+    let Some(cached) = profile::load_cache(&config::profile_cache_path()) else {
+        return Vec::new();
+    };
+    cached
+        .characters
+        .into_iter()
+        .map(|c| c.name)
+        .filter(|name| !config.characters.values().any(|taken| taken == name))
+        .collect()
+}
 
 pub fn run(table: Table, key: Option<String>) -> i32 {
     let Some(key) = key else {
@@ -80,6 +97,13 @@ pub fn run(table: Table, key: Option<String>) -> i32 {
         }
     };
 
+    let suggestions = suggestions(table, &config);
+    let size = if suggestions.is_empty() {
+        WINDOW
+    } else {
+        Size::new(WINDOW.width, WINDOW.height + PICKER + SPACING)
+    };
+
     let boot = move || {
         let state = Prompt {
             path: path.clone(),
@@ -87,6 +111,7 @@ pub fn run(table: Table, key: Option<String>) -> i32 {
             table,
             key: key.clone(),
             name: String::new(),
+            suggestions: suggestions.clone(),
             error: None,
             scheme: Scheme::of(&config),
         };
@@ -94,7 +119,7 @@ pub fn run(table: Table, key: Option<String>) -> i32 {
     };
 
     let window = iced::window::Settings {
-        size: WINDOW,
+        size,
         resizable: false,
         position: iced::window::Position::Centered,
         icon: crate::ui::tray::window_icon(),
@@ -116,6 +141,7 @@ pub fn run(table: Table, key: Option<String>) -> i32 {
 }
 
 const INPUT: &str = "name";
+const SPACING: f32 = 14.0;
 
 struct Prompt {
     path: PathBuf,
@@ -123,6 +149,7 @@ struct Prompt {
     table: Table,
     key: String,
     name: String,
+    suggestions: Vec<String>,
     error: Option<String>,
     scheme: Scheme,
 }
@@ -144,13 +171,14 @@ impl Prompt {
 #[derive(Debug, Clone)]
 enum Message {
     NameChanged(String),
+    Pick(String),
     Submit,
     Dismiss,
 }
 
 fn update(state: &mut Prompt, message: Message) -> Task<Message> {
     match message {
-        Message::NameChanged(name) => state.name = name,
+        Message::NameChanged(name) | Message::Pick(name) => state.name = name,
         Message::Submit => {
             if state.name.trim().is_empty() {
                 return Task::none();
@@ -196,11 +224,34 @@ fn view(state: &Prompt) -> Element<'_, Message> {
             .color(c.on_surface_variant),
         field,
     ]
-    .spacing(14)
+    .spacing(SPACING)
     .width(Length::Fill);
 
     if let Some(reason) = reason {
         body = body.push(text(reason).size(type_scale::BODY_MEDIUM).color(c.error));
+    }
+
+    if !state.suggestions.is_empty() {
+        let typed = state.name.trim().to_lowercase();
+        let chips = state
+            .suggestions
+            .iter()
+            .filter(|name| name.to_lowercase().contains(&typed))
+            .fold(row![].spacing(8), |chips, name| {
+                chips.push(m3::chip(
+                    c,
+                    name,
+                    *name == state.name.trim(),
+                    Message::Pick(name.clone()),
+                ))
+            })
+            .wrap()
+            .vertical_spacing(8);
+        body = body.push(
+            scrollable(chips)
+                .height(PICKER)
+                .style(move |_theme, status| m3::scroll_style(c, status)),
+        );
     }
 
     body = body.push(

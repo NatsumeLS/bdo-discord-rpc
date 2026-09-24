@@ -6,7 +6,7 @@ use iced::widget::{
 use iced::{border, gradient, Background, Color, Element, Length, Padding, Radians};
 
 use super::controls::{
-    dial, divider, dot, field, field_with, icon_button, marked, note, switch, switch_with,
+    dial, divider, dot, field, field_with, flow, icon_button, marked, note, switch, switch_with,
 };
 use super::{check, Message, PhaseField, SettingsWindow, KEY_WIDTH};
 use crate::config::{self, Table};
@@ -165,15 +165,15 @@ pub(super) fn overview(state: &SettingsWindow) -> Element<'_, Message> {
         return note(state, tr("overview.tray_not_running"));
     };
 
-    let mut page = column![].spacing(20);
+    let mut groups = Vec::new();
     for group in snapshot.groups.iter().filter(|g| !g.rows.is_empty()) {
         let mut rows = column![heading(state, &group.title)].spacing(6);
         for (label, value) in &group.rows {
             rows = rows.push(pair(state, label, value.clone()));
         }
-        page = page.push(rows);
+        groups.push((group.rows.len() + 1, rows.into()));
     }
-    page.into()
+    flow(state, groups, 20.0)
 }
 
 pub(super) fn theme_page(state: &SettingsWindow) -> Element<'_, Message> {
@@ -387,146 +387,220 @@ fn language(state: &SettingsWindow) -> Element<'_, Message> {
     )
 }
 
+// Weights for `flow`: a switch is one line, a field, slider or chip row about two.
+const LINE: usize = 1;
+const BLOCK: usize = 2;
+
 pub(super) fn general(state: &SettingsWindow) -> Element<'_, Message> {
-    column![
-        switch(state, tr("general.enabled"), lens!(enabled)),
-        language(state),
-        field(
-            state,
-            tr("general.app_id"),
-            lens!(client_id),
-            tr("general.app_id_hint"),
-            check::app_id,
-        ),
-        dial(
-            state,
-            tr("general.debounce"),
-            lens!(debounce_seconds),
-            0..=120
-        ),
-        dial(
-            state,
-            tr("general.min_update"),
-            lens!(min_update_seconds),
-            5..=600,
-        ),
-        dial(state, tr("general.poll"), lens!(poll_seconds), 1..=60),
-        switch(
-            state,
-            tr("general.ask_server"),
-            lens!(prompt_unknown_server),
-        ),
-        switch(
-            state,
-            tr("general.ask_character"),
-            lens!(prompt_unknown_character),
-        ),
-    ]
-    .spacing(18)
-    .into()
+    flow(
+        state,
+        vec![
+            (LINE, switch(state, tr("general.enabled"), lens!(enabled))),
+            (BLOCK, language(state)),
+            (
+                BLOCK,
+                field(
+                    state,
+                    tr("general.app_id"),
+                    lens!(client_id),
+                    tr("general.app_id_hint"),
+                    check::app_id,
+                ),
+            ),
+            (
+                BLOCK,
+                dial(
+                    state,
+                    tr("general.debounce"),
+                    lens!(debounce_seconds),
+                    0..=120,
+                ),
+            ),
+            (
+                BLOCK,
+                dial(
+                    state,
+                    tr("general.min_update"),
+                    lens!(min_update_seconds),
+                    5..=600,
+                ),
+            ),
+            (
+                BLOCK,
+                dial(state, tr("general.poll"), lens!(poll_seconds), 1..=60),
+            ),
+            (
+                LINE,
+                switch(
+                    state,
+                    tr("general.ask_server"),
+                    lens!(prompt_unknown_server),
+                ),
+            ),
+            (
+                LINE,
+                switch(
+                    state,
+                    tr("general.ask_character"),
+                    lens!(prompt_unknown_character),
+                ),
+            ),
+        ],
+        18.0,
+    )
 }
 
 pub(super) fn identity(state: &SettingsWindow) -> Element<'_, Message> {
-    column![
-        switch(
-            state,
-            tr("identity.show_family"),
-            lens!(identity.show_family)
-        ),
-        switch(
-            state,
-            tr("identity.show_character"),
-            lens!(identity.show_character)
-        ),
-        field(
-            state,
-            tr("identity.family"),
-            lens!(identity.family_name),
-            tr("identity.family_hint"),
-            |_| None,
-        ),
-        field(
-            state,
-            tr("identity.region"),
-            lens!(identity.region_name),
-            tr("identity.region_hint"),
-            |_| None,
-        ),
-    ]
-    .spacing(18)
-    .into()
+    flow(
+        state,
+        vec![
+            (
+                LINE,
+                switch(
+                    state,
+                    tr("identity.show_family"),
+                    lens!(identity.show_family),
+                ),
+            ),
+            (
+                LINE,
+                switch(
+                    state,
+                    tr("identity.show_character"),
+                    lens!(identity.show_character),
+                ),
+            ),
+            (
+                BLOCK,
+                field(
+                    state,
+                    tr("identity.family"),
+                    lens!(identity.family_name),
+                    tr("identity.family_hint"),
+                    |_| None,
+                ),
+            ),
+            (
+                BLOCK,
+                field(
+                    state,
+                    tr("identity.region"),
+                    lens!(identity.region_name),
+                    tr("identity.region_hint"),
+                    |_| None,
+                ),
+            ),
+        ],
+        18.0,
+    )
 }
 
 pub(super) fn display(state: &SettingsWindow) -> Element<'_, Message> {
-    column![
-        switch(state, tr("display.show_server"), lens!(display.show_server)),
-        switch(state, tr("display.show_region"), lens!(display.show_region)),
-        field(
-            state,
-            tr("display.game_icon"),
-            lens!(display.game_icon),
-            tr("display.game_icon_hint"),
-            check::image,
-        ),
-        field(
-            state,
-            tr("display.unknown"),
-            lens!(display.unknown),
-            tr("display.unknown_hint"),
-            |_| None,
-        ),
-    ]
-    .spacing(18)
-    .into()
+    flow(
+        state,
+        vec![
+            (
+                LINE,
+                switch(state, tr("display.show_server"), lens!(display.show_server)),
+            ),
+            (
+                LINE,
+                switch(state, tr("display.show_region"), lens!(display.show_region)),
+            ),
+            (
+                BLOCK,
+                field(
+                    state,
+                    tr("display.game_icon"),
+                    lens!(display.game_icon),
+                    tr("display.game_icon_hint"),
+                    check::image,
+                ),
+            ),
+            (
+                BLOCK,
+                field(
+                    state,
+                    tr("display.unknown"),
+                    lens!(display.unknown),
+                    tr("display.unknown_hint"),
+                    |_| None,
+                ),
+            ),
+        ],
+        18.0,
+    )
 }
 
 pub(super) fn profile(state: &SettingsWindow) -> Element<'_, Message> {
-    column![
-        switch(state, tr("profile.enabled"), lens!(profile.enabled)),
-        field(
-            state,
-            tr("profile.url"),
-            lens!(profile.url),
-            tr("profile.url_hint"),
-            check::url,
-        ),
-        field(
-            state,
-            tr("profile.search"),
-            lens!(profile.search_url),
-            tr("profile.search_hint"),
-            check::url,
-        ),
-        dial(
-            state,
-            tr("profile.refresh"),
-            lens!(profile.refresh_minutes),
-            15..=1440,
-        ),
-    ]
-    .spacing(18)
-    .into()
+    flow(
+        state,
+        vec![
+            (
+                LINE,
+                switch(state, tr("profile.enabled"), lens!(profile.enabled)),
+            ),
+            (
+                BLOCK,
+                field(
+                    state,
+                    tr("profile.url"),
+                    lens!(profile.url),
+                    tr("profile.url_hint"),
+                    check::url,
+                ),
+            ),
+            (
+                BLOCK,
+                field(
+                    state,
+                    tr("profile.search"),
+                    lens!(profile.search_url),
+                    tr("profile.search_hint"),
+                    check::url,
+                ),
+            ),
+            (
+                BLOCK,
+                dial(
+                    state,
+                    tr("profile.refresh"),
+                    lens!(profile.refresh_minutes),
+                    15..=1440,
+                ),
+            ),
+        ],
+        18.0,
+    )
 }
 
 pub(super) fn paths(state: &SettingsWindow) -> Element<'_, Message> {
-    column![
-        field(
-            state,
-            tr("paths.game"),
-            lens!(paths.game_root),
-            tr("paths.game_hint"),
-            check::game_folder,
-        ),
-        field(
-            state,
-            tr("paths.user_data"),
-            lens!(paths.user_data_dir),
-            tr("paths.user_data_hint"),
-            check::user_data,
-        ),
-    ]
-    .spacing(18)
-    .into()
+    flow(
+        state,
+        vec![
+            (
+                BLOCK,
+                field(
+                    state,
+                    tr("paths.game"),
+                    lens!(paths.game_root),
+                    tr("paths.game_hint"),
+                    check::game_folder,
+                ),
+            ),
+            (
+                BLOCK,
+                field(
+                    state,
+                    tr("paths.user_data"),
+                    lens!(paths.user_data_dir),
+                    tr("paths.user_data_hint"),
+                    check::user_data,
+                ),
+            ),
+        ],
+        18.0,
+    )
 }
 
 pub(super) fn names(state: &SettingsWindow, table: Table) -> Element<'_, Message> {
@@ -690,17 +764,27 @@ pub(super) fn phases(state: &SettingsWindow) -> Element<'_, Message> {
         cfg.report != saved.report
     )]
     .spacing(16);
-    for which in PhaseField::ALL {
-        let value = which.get(&cfg);
-        fields = fields.push(field_with(
-            state,
-            which.label(),
-            value,
-            which.hint(&cfg),
-            move |v| Message::PhaseText(which, v),
-            value != which.get(&saved),
-            which.error(value),
-        ));
+    // The fields come in pairs (an image and its hover, a label and its URL),
+    // so a wide window puts each pair on one row rather than splitting columns.
+    let per_row = if state.wide() { 2 } else { 1 };
+    for pair in PhaseField::ALL.chunks(per_row) {
+        let mut line = row![].spacing(super::COLUMN_GAP);
+        for &which in pair {
+            let value = which.get(&cfg);
+            line = line.push(
+                container(field_with(
+                    state,
+                    which.label(),
+                    value,
+                    which.hint(&cfg),
+                    move |v| Message::PhaseText(which, v),
+                    value != which.get(&saved),
+                    which.error(value),
+                ))
+                .width(Length::Fill),
+            );
+        }
+        fields = fields.push(line);
     }
 
     column![
@@ -770,7 +854,7 @@ pub(super) fn log_page(state: &SettingsWindow) -> Element<'_, Message> {
         )
         .padding(16)
         .width(Length::Fill)
-        .height(Length::Fixed(380.0))
+        .height(Length::Fixed(state.log_height()))
         .style(move |_t| {
             container::background(c.surface_container).border(border::rounded(shape::MEDIUM))
         })
@@ -781,6 +865,11 @@ pub(super) fn log_page(state: &SettingsWindow) -> Element<'_, Message> {
         body,
         row![
             icon_button(state, tr("log.open_folder"), Some(Message::OpenFolder)),
+            icon_button(
+                state,
+                tr("log.copy"),
+                (!state.log.is_empty()).then_some(Message::CopyLog)
+            ),
             note(state, config::log_path().display().to_string()),
         ]
         .spacing(12)

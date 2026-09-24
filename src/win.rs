@@ -25,8 +25,28 @@ use windows_sys::Win32::System::Threading::{
     EVENT_MODIFY_STATE,
 };
 use windows_sys::Win32::UI::WindowsAndMessaging::{
-    FindWindowW, SetForegroundWindow, ShowWindow, SW_RESTORE,
+    FindWindowW, SetForegroundWindow, ShowWindow, SystemParametersInfoW, SPI_GETWORKAREA,
+    SW_RESTORE,
 };
+
+// The primary screen less the taskbar. Asked before any window opens, while
+// the process is still DPI unaware, so the size is in the logical units iced
+// sizes windows in.
+pub fn work_area() -> Option<(f32, f32)> {
+    let mut area = windows_sys::Win32::Foundation::RECT {
+        left: 0,
+        top: 0,
+        right: 0,
+        bottom: 0,
+    };
+    let ok = unsafe { SystemParametersInfoW(SPI_GETWORKAREA, 0, (&raw mut area).cast(), 0) };
+    (ok != 0).then(|| {
+        (
+            (area.right - area.left) as f32,
+            (area.bottom - area.top) as f32,
+        )
+    })
+}
 
 #[derive(Copy, Clone, PartialEq, Eq)]
 pub enum Level {

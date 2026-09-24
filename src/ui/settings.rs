@@ -49,6 +49,11 @@ const WINDOW: Size = Size::new(960.0, 800.0);
 const RAIL_WIDTH: f32 = 232.0;
 const EDGE: u16 = 24;
 const KEY_WIDTH: f32 = 180.0;
+const COLUMN_WIDTH: f32 = 460.0;
+const COLUMN_GAP: f32 = 32.0;
+// Status bar, action bar, heading, the button row below the log, and padding.
+const LOG_CHROME: f32 = 270.0;
+const LOG_MIN_HEIGHT: f32 = 380.0;
 const REFRESH: Duration = Duration::from_secs(1);
 const LOG_TAIL_BYTES: u64 = 64 * 1024;
 
@@ -69,6 +74,14 @@ pub fn run(page: Page) -> i32 {
     let start = if unreadable { Page::Log } else { page };
     lang::apply(&config);
 
+    let size = match crate::win::work_area() {
+        Some((width, height)) => Size::new(
+            (width * 0.7).max(WINDOW.width).min(width),
+            (height * 0.85).max(WINDOW.height).min(height),
+        ),
+        None => WINDOW,
+    };
+
     let boot = move || {
         let state = SettingsWindow {
             path: path.clone(),
@@ -86,12 +99,13 @@ pub fn run(page: Page) -> i32 {
             tray: Tray::default(),
             picker: m3::hsv_of(m3::seed(&config)),
             picker_accent: config.theme.accent.clone(),
+            size,
         };
         (state, refresh_later())
     };
 
     let window = iced::window::Settings {
-        size: WINDOW,
+        size,
         min_size: Some(Size::new(760.0, 520.0)),
         position: iced::window::Position::Centered,
         icon: crate::ui::tray::window_icon(),
@@ -102,6 +116,14 @@ pub fn run(page: Page) -> i32 {
         .title(|_: &SettingsWindow| crate::ui::tray::TOOLTIP.to_string())
         .window(window)
         .theme(|state: &SettingsWindow| m3::theme(&state.config))
+        .subscription(|_| {
+            iced::event::listen_with(|event, _status, _window| match event {
+                iced::Event::Window(iced::window::Event::Resized(size)) => {
+                    Some(Message::Resized(size))
+                }
+                _ => None,
+            })
+        })
         .run()
     {
         Ok(()) => 0,
@@ -231,6 +253,7 @@ struct SettingsWindow {
     tray: Tray,
     picker: (f32, f32, f32),
     picker_accent: String,
+    size: Size,
 }
 
 #[derive(Debug, Clone, Copy)]
@@ -337,6 +360,16 @@ impl PhaseField {
 impl SettingsWindow {
     fn scheme(&self) -> Scheme {
         Scheme::of(&self.config)
+    }
+
+    // Wide enough that each of two columns keeps a comfortable field width.
+    fn wide(&self) -> bool {
+        self.size.width - RAIL_WIDTH - 2.0 * f32::from(EDGE) >= 2.0 * COLUMN_WIDTH + COLUMN_GAP
+    }
+
+    // The log view takes the height the rest of its page leaves, never less than it used to be.
+    fn log_height(&self) -> f32 {
+        (self.size.height - LOG_CHROME).max(LOG_MIN_HEIGHT)
     }
 
     fn error(&self) -> Option<String> {
@@ -522,6 +555,8 @@ enum Message {
     PhaseText(PhaseField, String),
     PhaseReport(bool),
     OpenFolder,
+    CopyLog,
+    Resized(Size),
     OpenUrl(&'static str),
     ThemeMode(&'static str),
     ThemePalette(m3::Palette),
@@ -589,6 +624,11 @@ fn update(state: &mut SettingsWindow, message: Message) -> Task<Message> {
                 .raw_arg(format!("/select,\"{}\"", config::log_path().display()))
                 .spawn();
         }
+        Message::CopyLog => {
+            task = iced::clipboard::write(state.log.clone());
+            state.message = Some((tr("log.copied").into(), true));
+        }
+        Message::Resized(size) => state.size = size,
         Message::OpenUrl(url) => {
             let _ = std::process::Command::new("explorer").arg(url).spawn();
         }

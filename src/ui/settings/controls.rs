@@ -1,4 +1,6 @@
-use iced::widget::{button, column, container, row, slider, text, text_input, toggler, Space};
+use iced::widget::{
+    button, column, container, row, slider, text, text_input, toggler, Column, Space,
+};
 use iced::{border, Background, Color, Element, Length, Padding};
 
 use super::{Lens, Message, SettingsWindow};
@@ -28,6 +30,34 @@ pub(super) fn marked<'a>(
     row![dot(c, true), control]
         .spacing(10)
         .align_y(iced::Alignment::Start)
+        .into()
+}
+
+// One column, or two once the window is wide. Items keep their reading order,
+// down the left column and then the right, split where half the weight falls.
+pub(super) fn flow<'a>(
+    state: &SettingsWindow,
+    items: Vec<(usize, Element<'a, Message>)>,
+    spacing: f32,
+) -> Element<'a, Message> {
+    if !state.wide() {
+        return Column::with_children(items.into_iter().map(|(_, item)| item))
+            .spacing(spacing)
+            .into();
+    }
+    let total: usize = items.iter().map(|(weight, _)| weight).sum();
+    let (mut left, mut right) = (column![].spacing(spacing), column![].spacing(spacing));
+    let mut placed = 0;
+    for (weight, item) in items {
+        if placed * 2 < total {
+            left = left.push(item);
+            placed += weight;
+        } else {
+            right = right.push(item);
+        }
+    }
+    row![left.width(Length::Fill), right.width(Length::Fill)]
+        .spacing(super::COLUMN_GAP)
         .into()
 }
 

@@ -230,6 +230,8 @@ life_skill = "%{skill} Grade and Level"
 [log]
 empty = "Nothing yet"
 open_folder = "Open Folder"
+copy = "Copy Log"
+copied = "Log copied"
 
 [about]
 built_with = "Built with"

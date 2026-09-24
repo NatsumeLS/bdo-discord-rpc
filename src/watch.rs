@@ -832,8 +832,13 @@ impl<'a> Watcher<'a> {
                         row(
                             tr("overview.server"),
                             stable.game_server.as_deref().map(|key| {
-                                t!("overview.named", key = key, name = config.server_name(key))
-                                    .into_owned()
+                                match config.servers.get(key) {
+                                    Some(name) => {
+                                        t!("overview.server_named", key = key, name = name)
+                                    }
+                                    None => t!("overview.server_unnamed", key = key),
+                                }
+                                .into_owned()
                             }),
                         ),
                     ],
@@ -847,22 +852,39 @@ impl<'a> Watcher<'a> {
                             self.session.character.as_deref().map(|key| {
                                 match config.characters.get(key) {
                                     Some(name) if self.derived.unmatched.as_ref() == Some(name) => {
-                                        t!("overview.not_on_profile", key = key, name = name)
+                                        t!(
+                                            "overview.character_not_on_profile",
+                                            key = key,
+                                            name = name
+                                        )
                                     }
-                                    Some(name) => t!("overview.named", key = key, name = name),
-                                    None => t!("overview.unnamed", key = key),
+                                    Some(name) => {
+                                        let who = profile
+                                            .and_then(|p| p.character(name))
+                                            .map_or_else(|| name.clone(), describe);
+                                        t!("overview.character_named", key = key, name = who)
+                                    }
+                                    None => t!("overview.character_unnamed", key = key),
                                 }
                                 .into_owned()
                             }),
                         ),
                         row(
                             tr("overview.main"),
-                            profile.and_then(Profile::main).map(|m| m.summary()),
+                            profile.and_then(Profile::main).map(describe),
                         ),
                         row(tr("overview.guild"), profile.and_then(|p| p.guild.clone())),
                         row(
                             tr("overview.gear_score"),
                             profile.and_then(|p| p.gear_score.clone()),
+                        ),
+                        row(
+                            tr("overview.energy"),
+                            profile.and_then(|p| p.energy.clone()),
+                        ),
+                        row(
+                            tr("overview.contribution"),
+                            profile.and_then(|p| p.contribution.clone()),
                         ),
                         row(
                             tr("overview.family_created"),
@@ -888,6 +910,19 @@ impl<'a> Watcher<'a> {
                 ),
             ],
         }
+    }
+}
+
+// "Yukikiri, Deadeye, Lv. 60", or without the level when the page has none.
+fn describe(character: &profile::Character) -> String {
+    let class = t!(
+        "overview.class",
+        name = character.name,
+        class = character.class
+    );
+    match character.level {
+        Some(level) => t!("overview.class_level", who = class, level = level).into_owned(),
+        None => class.into_owned(),
     }
 }
 

@@ -52,45 +52,16 @@ const EDGE: u16 = 20;
 const WINDOW: Size = Size::new(480.0, 232.0);
 const PICKER: f32 = 80.0;
 
-const KNOWN_SERVERS: &[&str] = &[
-    "Season-1 (TH)",
-    "Season-2 (TH)",
-    "Season-1 (SEA)",
-    "Season-2 (SEA)",
-    "New Olvia (TH)",
-    "New Olvia (SEA)",
-    "Odyllita-1",
-    "Arsha",
-    "Arsha: Anonymous",
-    "Velia-1 (TH)",
-    "Velia-2 (TH)",
-    "Velia-1 (SEA)",
-    "Velia-2 (SEA)",
-    "Heidel-1 (TH)",
-    "Heidel-2 (TH)",
-    "Heidel-1 (SEA)",
-    "Heidel-2 (SEA)",
-    "Altinova-1 (TH)",
-    "Altinova-2 (TH)",
-    "Altinova-1 (SEA)",
-    "Altinova-2 (SEA)",
-    "Grana-1 (TH)",
-    "Grana-1 (SEA)",
-    "Calpheon",
-    "Balenos",
-    "Serendia",
-    "Mediah",
-    "Valencia",
-    "Ulukita",
-    "Rulupee-1",
-    "Rulupee-2",
-    "Kamasylvia",
-    "Edania",
-];
+const KNOWN_SERVERS: &str = include_str!("../../assets/servers.txt");
 
 pub fn known_names(table: Table) -> Vec<String> {
     match table {
-        Table::Servers => KNOWN_SERVERS.iter().map(|name| name.to_string()).collect(),
+        Table::Servers => KNOWN_SERVERS
+            .lines()
+            .map(str::trim)
+            .filter(|name| !name.is_empty())
+            .map(str::to_string)
+            .collect(),
         Table::Characters => profile::load_cache(&config::profile_cache_path())
             .map(|cached| cached.characters.into_iter().map(|c| c.name).collect())
             .unwrap_or_default(),

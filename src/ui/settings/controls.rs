@@ -1,5 +1,5 @@
 use iced::widget::{button, column, container, row, slider, text, text_input, toggler, Space};
-use iced::{border, Background, Color, Element, Length};
+use iced::{border, Background, Color, Element, Length, Padding};
 
 use super::{Lens, Message, SettingsWindow};
 use crate::ui::m3::{self, shape, type_scale, Scheme};
@@ -158,17 +158,19 @@ pub(super) fn field_with<'a>(
 ) -> Element<'a, Message> {
     let c = state.scheme();
     let wrong = error.is_some();
+    let clear = (!value.is_empty()).then(|| on_input(String::new()));
+    let input = text_input(placeholder, value)
+        .on_input(on_input)
+        .size(type_scale::BODY_LARGE)
+        .padding(Padding::from([12, 16]).right(16.0 + m3::CLEAR_ROOM))
+        .style(move |_theme, status| m3::field_style(c, status, wrong));
     let mut control = column![
         text(label).size(type_scale::BODY_MEDIUM).color(if wrong {
             c.error
         } else {
             c.on_surface_variant
         }),
-        text_input(placeholder, value)
-            .on_input(on_input)
-            .size(type_scale::BODY_LARGE)
-            .padding([12, 16])
-            .style(move |_theme, status| m3::field_style(c, status, wrong)),
+        m3::clearable(c, input, clear),
     ]
     .spacing(6);
     if let Some(reason) = error {

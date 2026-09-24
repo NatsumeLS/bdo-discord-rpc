@@ -1,7 +1,7 @@
 use std::path::PathBuf;
 
 use iced::widget::{column, container, operation, row, scrollable, text, text_input, Space};
-use iced::{Element, Length, Size, Task};
+use iced::{Element, Length, Padding, Size, Task};
 
 use crate::config::{self, Config, Table};
 use crate::read::profile;
@@ -248,8 +248,13 @@ fn view(state: &Prompt) -> Element<'_, Message> {
         .on_input(Message::NameChanged)
         .on_submit(Message::Submit)
         .size(type_scale::BODY_LARGE)
-        .padding([12, 16])
+        .padding(Padding::from([12, 16]).right(16.0 + m3::CLEAR_ROOM))
         .style(move |_theme, status| m3::field_style(c, status, wrong));
+    let field = m3::clearable(
+        c,
+        field,
+        (!state.name.is_empty()).then(|| Message::NameChanged(String::new())),
+    );
 
     let mut body = column![
         text(intro(state.table, &state.key))

@@ -1,8 +1,8 @@
 use std::collections::BTreeMap;
 use std::sync::Mutex;
 
-use iced::widget::{button, container, scrollable, text, text_input};
-use iced::{border, Background, Border, Color, Element, Shadow, Vector};
+use iced::widget::{button, container, scrollable, stack, text, text_input};
+use iced::{border, Background, Border, Color, Element, Length, Shadow, Vector};
 use material_color_rs::dynamiccolor::MaterialDynamicColors as Roles;
 use material_color_rs::{DynamicScheme, Hct, TonalPalette, Variant};
 
@@ -457,6 +457,42 @@ pub fn chip<'a, M: Clone + 'a>(
             }
         })
         .into()
+}
+
+// Room the clear button takes at a field's right end, for the field's padding.
+pub const CLEAR_ROOM: f32 = 40.0;
+
+// An × over the field's right end, only while there is something to clear.
+pub fn clearable<'a, M: Clone + 'a>(
+    c: Scheme,
+    field: impl Into<Element<'a, M>>,
+    clear: Option<M>,
+) -> Element<'a, M> {
+    let Some(clear) = clear else {
+        return field.into();
+    };
+    let button = button(text("\u{00D7}").size(type_scale::TITLE_MEDIUM))
+        .padding([2, 10])
+        .on_press(clear)
+        .style(move |_theme, status| {
+            pill(
+                Color {
+                    a: layer(status),
+                    ..c.on_surface
+                },
+                c.on_surface_variant,
+            )
+        });
+    stack![
+        field.into(),
+        container(button)
+            .width(Length::Fill)
+            .height(Length::Fill)
+            .align_x(iced::Alignment::End)
+            .align_y(iced::Alignment::Center)
+            .padding([0, 6]),
+    ]
+    .into()
 }
 
 pub fn scroll_style(c: Scheme, status: scrollable::Status) -> scrollable::Style {

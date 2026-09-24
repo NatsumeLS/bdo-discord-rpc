@@ -3,7 +3,7 @@ use std::collections::BTreeSet;
 use iced::widget::{
     column, container, rich_text, row, scrollable, slider, span, text, text_input, Space,
 };
-use iced::{border, gradient, Background, Color, Element, Length, Radians};
+use iced::{border, gradient, Background, Color, Element, Length, Padding, Radians};
 
 use super::controls::{
     dial, divider, dot, field, field_with, icon_button, marked, note, switch, switch_with,
@@ -517,11 +517,19 @@ pub(super) fn names(state: &SettingsWindow, table: Table) -> Element<'_, Message
             row![
                 dot(c, was.get(key) != Some(name)),
                 label,
-                text_input("", name)
-                    .on_input(move |v| Message::TableRename(table, key_for_edit.clone(), v))
-                    .size(type_scale::BODY_MEDIUM)
-                    .padding([8, 12])
-                    .style(move |_t, status| m3::field_style(c, status, blank)),
+                m3::clearable(
+                    c,
+                    text_input("", name)
+                        .on_input(move |v| Message::TableRename(table, key_for_edit.clone(), v))
+                        .size(type_scale::BODY_MEDIUM)
+                        .padding(Padding::from([8, 12]).right(12.0 + m3::CLEAR_ROOM))
+                        .style(move |_t, status| m3::field_style(c, status, blank)),
+                    (!name.is_empty()).then(|| Message::TableRename(
+                        table,
+                        key.clone(),
+                        String::new()
+                    )),
+                ),
                 icon_button(
                     state,
                     tr("names.remove"),
@@ -541,17 +549,25 @@ pub(super) fn names(state: &SettingsWindow, table: Table) -> Element<'_, Message
     let ready = !pending.0.trim().is_empty() && !pending.1.trim().is_empty() && !wrong_key;
 
     let add = row![
-        text_input(key_hint, &pending.0)
-            .on_input(move |v| Message::TablePendingKey(table, v))
-            .size(type_scale::BODY_MEDIUM)
-            .padding([8, 12])
-            .width(Length::Fixed(KEY_WIDTH))
-            .style(move |_t, status| m3::field_style(c, status, wrong_key)),
-        text_input(prompt::hint(table), &pending.1)
-            .on_input(move |v| Message::TablePendingName(table, v))
-            .size(type_scale::BODY_MEDIUM)
-            .padding([8, 12])
-            .style(move |_t, status| m3::field_style(c, status, false)),
+        m3::clearable(
+            c,
+            text_input(key_hint, &pending.0)
+                .on_input(move |v| Message::TablePendingKey(table, v))
+                .size(type_scale::BODY_MEDIUM)
+                .padding(Padding::from([8, 12]).right(12.0 + m3::CLEAR_ROOM))
+                .width(Length::Fixed(KEY_WIDTH))
+                .style(move |_t, status| m3::field_style(c, status, wrong_key)),
+            (!pending.0.is_empty()).then(|| Message::TablePendingKey(table, String::new())),
+        ),
+        m3::clearable(
+            c,
+            text_input(prompt::hint(table), &pending.1)
+                .on_input(move |v| Message::TablePendingName(table, v))
+                .size(type_scale::BODY_MEDIUM)
+                .padding(Padding::from([8, 12]).right(12.0 + m3::CLEAR_ROOM))
+                .style(move |_t, status| m3::field_style(c, status, false)),
+            (!pending.1.is_empty()).then(|| Message::TablePendingName(table, String::new())),
+        ),
         icon_button(
             state,
             tr("names.add"),

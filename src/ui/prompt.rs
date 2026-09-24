@@ -156,6 +156,7 @@ pub fn run(table: Table, key: Option<String>, service: Option<String>) -> i32 {
     let window = iced::window::Settings {
         size,
         resizable: false,
+        level: iced::window::Level::AlwaysOnTop,
         position: iced::window::Position::Centered,
         icon: crate::ui::tray::window_icon(),
         ..iced::window::Settings::default()

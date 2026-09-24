@@ -209,7 +209,12 @@ pub fn refresh_profile(
             } else if let Some(cached) = profile.as_ref().and_then(|p| p.url.clone()) {
                 cached
             } else if let Some(family) = family {
-                match profile::resolve_url(&search_url(config, service), family) {
+                let search = search_url(config, service);
+                // A region without a search was already warned about when the game was found.
+                if search.is_empty() {
+                    return Fetch::Skipped;
+                }
+                match profile::resolve_url(&search, family) {
                     Ok(found) => {
                         log(&format!("Profile: Found the Page for {family}"));
                         found

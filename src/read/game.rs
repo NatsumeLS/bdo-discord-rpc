@@ -147,11 +147,10 @@ fn wide_to_string(buf: &[u16]) -> String {
     String::from_utf16_lossy(&buf[..len])
 }
 
-pub fn detect_region(root: &Path) -> Option<String> {
+pub fn detect_service(root: &Path) -> Option<String> {
     let text = std::fs::read_to_string(root.join("service.ini")).ok()?;
 
     let mut in_service = false;
-    let mut raw = None;
     for line in text.lines() {
         let line = line.trim();
         if line.is_empty() || line.starts_with(';') || line.starts_with('#') {
@@ -166,18 +165,11 @@ pub fn detect_region(root: &Path) -> Option<String> {
         }
         if let Some((key, value)) = line.split_once('=') {
             if key.trim().eq_ignore_ascii_case("type") {
-                raw = Some(value.trim().to_string());
-                break;
+                return Some(value.trim().to_string());
             }
         }
     }
-
-    let raw = raw?;
-    let display = match raw.to_ascii_uppercase().as_str() {
-        "ASIA" => "Asia",
-        _ => return Some(raw),
-    };
-    Some(display.to_string())
+    None
 }
 
 pub fn default_user_data_dir() -> Option<PathBuf> {

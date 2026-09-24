@@ -12,6 +12,7 @@ use crate::phase::{self, Phase};
 use crate::read::game::{self, GameFinder, GameProcess};
 use crate::read::log_tail::{GameState, LogTail};
 use crate::read::profile::{self, Profile};
+use crate::region;
 use crate::show::discord::Presence;
 use crate::show::presence::{build, context, PresenceFields};
 use crate::ui::lang::tr;
@@ -90,6 +91,8 @@ pub struct Snapshot {
     pub health: Health,
     pub line: String,
     pub groups: Vec<Group>,
+    #[serde(default)]
+    pub service: Option<String>,
 }
 
 #[derive(Serialize, Deserialize, PartialEq)]
@@ -133,8 +136,15 @@ pub fn resolve_family(config: &Config) -> Option<String> {
         .or_else(|| resolve_user_data_dir(config).and_then(|dir| game::detect_family(&dir)))
 }
 
-pub fn resolve_region(config: &Config, root: &Path) -> Option<String> {
-    non_empty(&config.identity.region_name).or_else(|| game::detect_region(root))
+pub fn resolve_region(config: &Config, service: Option<&str>) -> Option<String> {
+    non_empty(&config.identity.region_name).or_else(|| service.map(region::name))
+}
+
+// The config's own Search URL, or the one for the region the game runs in.
+fn search_url(config: &Config, service: Option<&str>) -> String {
+    non_empty(&config.profile.search_url)
+        .or_else(|| service.and_then(region::get).map(|r| r.search.clone()))
+        .unwrap_or_default()
 }
 
 fn past_read_window(play_started: SystemTime) -> bool {
@@ -161,6 +171,7 @@ pub enum Fetch {
 pub fn refresh_profile(
     config: &Config,
     family: Option<&str>,
+    service: Option<&str>,
     url: &mut Option<String>,
     profile: &mut Option<Profile>,
 ) -> Fetch {
@@ -196,7 +207,7 @@ pub fn refresh_profile(
             } else if let Some(cached) = profile.as_ref().and_then(|p| p.url.clone()) {
                 cached
             } else if let Some(family) = family {
-                match profile::resolve_url(&config.profile.search_url, family) {
+                match profile::resolve_url(&search_url(config, service), family) {
                     Ok(found) => {
                         log(&format!("Profile: Found the Page for {family}"));
                         found
@@ -260,7 +271,7 @@ impl Derived {
 struct Game {
     root: PathBuf,
     tail: LogTail,
-    region: Option<String>,
+    service: Option<String>,
 }
 
 struct Session {
@@ -500,14 +511,20 @@ impl<'a> Watcher<'a> {
         self.game = match running {
             Some(process) => {
                 log(&format!("Game: Found at {}", process.root.display()));
-                let region = game::detect_region(&process.root);
-                match non_empty(&self.config.identity.region_name).or(region.clone()) {
+                let service = game::detect_service(&process.root);
+                match &service {
+                    Some(code) if region::get(code).is_none() => win::warn(&format!(
+                        "Region: {code} is not in regions.toml, so it has no Server Names or Profile Search"
+                    )),
+                    _ => {}
+                }
+                match resolve_region(&self.config, service.as_deref()) {
                     Some(shown) => log(&format!("Region: {shown}")),
                     None => win::warn("Region: Not found in service.ini"),
                 }
                 Some(Game {
                     tail: LogTail::new(&process.root, process.started_at),
-                    region,
+                    service,
                     root: process.root,
                 })
             }
@@ -573,6 +590,7 @@ impl<'a> Watcher<'a> {
         match refresh_profile(
             &self.config,
             d.family.as_deref(),
+            self.game.as_ref().and_then(|g| g.service.as_deref()),
             &mut d.profile_url,
             &mut d.profile,
         ) {
@@ -668,7 +686,11 @@ impl<'a> Watcher<'a> {
         if table.entries(&self.config).contains_key(key) || !self.prompted.insert(key.to_string()) {
             return;
         }
-        match self.prompt.open(&[crate::ui::prompt::flag(table), key]) {
+        let mut args = vec![crate::ui::prompt::flag(table), key];
+        if let Some(service) = self.game.as_ref().and_then(|g| g.service.as_deref()) {
+            args.push(service);
+        }
+        match self.prompt.open(&args) {
             Ok(()) => log(&format!(
                 "{}: {key} is unnamed, asking for a Name",
                 table.noun()
@@ -678,8 +700,10 @@ impl<'a> Watcher<'a> {
     }
 
     fn region(&self) -> Option<String> {
-        non_empty(&self.config.identity.region_name)
-            .or_else(|| self.game.as_ref().and_then(|g| g.region.clone()))
+        resolve_region(
+            &self.config,
+            self.game.as_ref().and_then(|g| g.service.as_deref()),
+        )
     }
 
     fn push(&mut self) {
@@ -780,6 +804,7 @@ impl<'a> Watcher<'a> {
         Snapshot {
             health: status.health,
             line: status.line.clone(),
+            service: game.and_then(|g| g.service.clone()),
             groups: vec![
                 group(
                     tr("overview.game"),

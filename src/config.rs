@@ -9,9 +9,6 @@ use crate::phase::Phase;
 const DEFAULT_CLIENT_ID: &str = "1551141273551904848";
 const CONFIG_FILE: &str = "bdo-discord-rpc.toml";
 
-const PROFILE_SEARCH_URL: &str =
-    "https://blackdesert.pearlabyss.com/Asia/en-US/Game/Profile/Search";
-
 const PROFILE_BUTTON_LABEL: &str = "Adventurer Profile";
 const PROFILE_BUTTON_URL: &str = "{profile_url}";
 
@@ -137,7 +134,7 @@ impl Default for ProfileConfig {
             enabled: true,
             url: String::new(),
             refresh_minutes: 60,
-            search_url: PROFILE_SEARCH_URL.into(),
+            search_url: String::new(),
         }
     }
 }

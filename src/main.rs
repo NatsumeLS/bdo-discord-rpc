@@ -5,6 +5,7 @@ rust_i18n::i18n!("locales", fallback = "en");
 mod config;
 mod phase;
 mod read;
+mod region;
 mod show;
 mod ui;
 mod watch;
@@ -44,7 +45,7 @@ fn main() {
             0
         }
         Some(other) => match prompt::from_flag(other) {
-            Some(table) => prompt::run(table, args.get(1).cloned()),
+            Some(table) => prompt::run(table, args.get(1).cloned(), args.get(2).cloned()),
             None => {
                 eprintln!("Unknown Argument: {other}");
                 print_help();
@@ -58,13 +59,21 @@ fn main() {
 fn print_help() {
     println!("bdo-discord-rpc {}", env!("CARGO_PKG_VERSION"));
     println!();
-    println!("  bdo-discord-rpc                                  Run in the System Tray and update Discord");
-    println!("  bdo-discord-rpc --settings                       Open the Settings Window");
-    println!("  bdo-discord-rpc --probe                          Print what can be read right now, then exit");
-    println!("  bdo-discord-rpc --name-server <server-key>       Ask for the Name of that Server");
-    println!(
-        "  bdo-discord-rpc --name-character <character-id>  Ask for the Name of that Character"
-    );
+    for (usage, what) in [
+        ("", "Run in the System Tray and update Discord"),
+        ("--settings", "Open the Settings Window"),
+        ("--probe", "Print what can be read right now, then exit"),
+        (
+            "--name-server <server-key> [service]",
+            "Ask for the Name of that Server",
+        ),
+        (
+            "--name-character <character-id>",
+            "Ask for the Name of that Character",
+        ),
+    ] {
+        println!("  bdo-discord-rpc {usage:<37} {what}");
+    }
     println!();
     println!("Config: {}", config::config_path().display());
 }
@@ -181,13 +190,19 @@ fn probe() -> i32 {
     let mut finder = GameFinder::default();
     let mut state = GameState::default();
     let mut region = String::new();
+    let mut service = None;
 
     match resolve_game(&config, &mut finder) {
         Some(process) => {
             let root = &process.root;
-            region = resolve_region(&config, root).unwrap_or_default();
+            service = game::detect_service(root);
+            region = resolve_region(&config, service.as_deref()).unwrap_or_default();
             println!("Game Root : {}", root.display());
-            println!("Region    : {}", or_unknown(&region));
+            println!(
+                "Region    : {} ({})",
+                or_unknown(&region),
+                service.as_deref().unwrap_or("no service.ini TYPE")
+            );
 
             let mut tail = LogTail::new(root, process.started_at);
             tail.poll(&mut state);
@@ -235,7 +250,13 @@ fn probe() -> i32 {
     }
 
     let mut profile = None;
-    refresh_profile(&config, family.as_deref(), &mut None, &mut profile);
+    refresh_profile(
+        &config,
+        family.as_deref(),
+        service.as_deref(),
+        &mut None,
+        &mut profile,
+    );
     let ctx = context(
         &config,
         &state,

@@ -1,13 +1,11 @@
-use std::collections::BTreeMap;
 use std::path::PathBuf;
-
-use serde::Deserialize;
 
 use iced::widget::{column, container, operation, row, scrollable, text, text_input, Space};
 use iced::{Element, Length, Size, Task};
 
 use crate::config::{self, Config, Table};
 use crate::read::profile;
+use crate::region;
 use crate::ui::lang::{self, tr};
 use crate::ui::m3::{self, type_scale, Scheme};
 use rust_i18n::t;
@@ -58,39 +56,20 @@ const EDGE: u16 = 20;
 const WINDOW: Size = Size::new(480.0, 232.0);
 const PICKER: f32 = 80.0;
 
-const KNOWN_SERVERS: &str = include_str!("../../assets/servers.toml");
-const SERVICE: &str = "ASIA";
-
-#[derive(Deserialize)]
-struct Service {
-    servers: Vec<String>,
-}
-
-fn known_servers(service: &str) -> Vec<String> {
-    toml::from_str::<BTreeMap<String, Service>>(KNOWN_SERVERS)
-        .ok()
-        .and_then(|mut services| services.remove(service))
-        .map(|found| found.servers)
+pub fn character_names() -> Vec<String> {
+    profile::load_cache(&config::profile_cache_path())
+        .map(|cached| cached.characters.into_iter().map(|c| c.name).collect())
         .unwrap_or_default()
 }
 
-pub fn known_names(table: Table) -> Vec<String> {
-    match table {
-        Table::Servers => known_servers(SERVICE),
-        Table::Characters => profile::load_cache(&config::profile_cache_path())
-            .map(|cached| cached.characters.into_iter().map(|c| c.name).collect())
-            .unwrap_or_default(),
-    }
-}
-
 pub fn untaken<'a>(
-    known: &'a [String],
+    known: impl IntoIterator<Item = &'a String> + 'a,
     table: Table,
     config: &'a Config,
 ) -> impl Iterator<Item = &'a String> {
     let taken = table.entries(config);
     known
-        .iter()
+        .into_iter()
         .filter(move |name| !taken.values().any(|used| used == *name))
 }
 
@@ -113,7 +92,7 @@ pub fn picker<'a, M: Clone + 'a>(
         .into()
 }
 
-pub fn run(table: Table, key: Option<String>) -> i32 {
+pub fn run(table: Table, key: Option<String>, service: Option<String>) -> i32 {
     let Some(key) = key else {
         let wanted = match table {
             Table::Servers => "Server Key",
@@ -148,9 +127,12 @@ pub fn run(table: Table, key: Option<String>) -> i32 {
         }
     };
 
-    let suggestions: Vec<String> = untaken(&known_names(table), table, &config)
-        .cloned()
-        .collect();
+    let characters = character_names();
+    let known = match table {
+        Table::Servers => region::servers(service.as_deref()),
+        Table::Characters => characters.iter().collect(),
+    };
+    let suggestions: Vec<String> = untaken(known, table, &config).cloned().collect();
     let size = if suggestions.is_empty() {
         WINDOW
     } else {

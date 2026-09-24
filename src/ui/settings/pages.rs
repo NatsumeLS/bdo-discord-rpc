@@ -571,9 +571,19 @@ pub(super) fn names(state: &SettingsWindow, table: Table) -> Element<'_, Message
     if let Some(reason) = bad_key {
         page = page.push(text(reason).size(type_scale::BODY_MEDIUM).color(c.error));
     }
+    let known = match table {
+        Table::Servers => crate::region::servers(
+            state
+                .tray
+                .snapshot
+                .as_ref()
+                .and_then(|s| s.service.as_deref()),
+        ),
+        Table::Characters => state.characters.iter().collect(),
+    };
     page.push(prompt::picker(
         c,
-        prompt::untaken(&state.known[table as usize], table, &state.config),
+        prompt::untaken(known, table, &state.config),
         &pending.1,
         move |name| Message::TablePendingName(table, name),
     ))

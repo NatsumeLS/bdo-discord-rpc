@@ -1,7 +1,10 @@
-# Server names as the game lists them, one table per service.
-# Each table is named after the TYPE the game writes in service.ini.
+# One table per service, named after the TYPE the game writes in service.ini.
+# name: how the region is shown. search: the Adventurer Profile search, with
+# {family} where the family name goes. servers: names as the game lists them.
 
 [ASIA]
+name = "Asia"
+search = "https://blackdesert.pearlabyss.com/Asia/en-US/Game/Profile/Search?_type=2&_keyword={family}"
 servers = [
     "Season-1 (TH)",
     "Season-2 (TH)",

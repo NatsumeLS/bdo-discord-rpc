@@ -83,14 +83,19 @@ fn encode(value: &str) -> String {
         .collect()
 }
 
-pub fn resolve_url(search_url: &str, family: &str) -> Result<String, String> {
-    if search_url.trim().is_empty() {
-        return Err("No Search URL set in the Config".into());
+pub fn resolve_url(search: &str, family: &str) -> Result<String, String> {
+    let search = search.trim();
+    if search.is_empty() {
+        return Err("No Search URL for this Region".into());
     }
 
-    // `_type=2` is Family Name. `_type=1` searches Character Names and finds
-    // nothing for a family.
-    let url = format!("{search_url}?_type=2&_keyword={}", encode(family));
+    let url = if search.contains("{family}") {
+        search.replace("{family}", &encode(family))
+    } else {
+        // A bare URL from an older config. `_type=2` is Family Name, and
+        // `_type=1` searches Character Names and finds nothing for a family.
+        format!("{search}?_type=2&_keyword={}", encode(family))
+    };
     let body = get(&url, &format!("Searching for {family}"))?;
 
     pick_profile_link(&body, family)

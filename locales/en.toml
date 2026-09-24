@@ -129,7 +129,7 @@ enabled = "Look up my Profile"
 url = "Profile URL"
 url_hint = "Searches for the Family Name"
 search = "Search URL"
-search_hint = "Region-specific"
+search_hint = "Follows the Game's Region"
 refresh = "Refresh Minutes"
 
 [paths]

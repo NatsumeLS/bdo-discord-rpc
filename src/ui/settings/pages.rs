@@ -404,8 +404,8 @@ pub(super) fn paths(state: &SettingsWindow) -> Element<'_, Message> {
 pub(super) fn names(state: &SettingsWindow, table: Table) -> Element<'_, Message> {
     let c = state.scheme();
     let key_hint = match table {
-        Table::Servers => "game12.sg",
-        Table::Characters => "30000000000000000",
+        Table::Servers => "Server Host",
+        Table::Characters => "Character ID",
     };
     let entries = table.entries(&state.config);
     let pending = &state.pending[table as usize];

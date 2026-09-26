@@ -48,6 +48,7 @@ tray_not_running = "Tray not running"
 
 [overview]
 tray_not_running = "The Tray is not running"
+open_profile = "Open Adventurer Profile"
 game = "Game"
 folder = "Folder"
 region = "Region"

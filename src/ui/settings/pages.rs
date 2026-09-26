@@ -174,7 +174,20 @@ pub(super) fn overview(state: &SettingsWindow) -> Element<'_, Message> {
         let height = GROUP_HEADING + PAIR_ROW * group.rows.len() as f32;
         groups.push((height, rows.into()));
     }
-    flow(state, groups, 20.0)
+    let groups = flow(state, groups, 20.0);
+    match snapshot.detected.profile_url.clone() {
+        Some(url) => column![
+            icon_button(
+                state,
+                tr("overview.open_profile"),
+                Some(Message::OpenUrl(url))
+            ),
+            groups,
+        ]
+        .spacing(20)
+        .into(),
+        None => groups,
+    }
 }
 
 pub(super) fn theme_page(state: &SettingsWindow) -> Element<'_, Message> {

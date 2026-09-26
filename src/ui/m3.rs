@@ -1,7 +1,7 @@
 use std::collections::BTreeMap;
 use std::sync::Mutex;
 
-use iced::widget::{button, container, scrollable, stack, text, text_input};
+use iced::widget::{button, container, scrollable, stack, text, text_input, Space};
 use iced::{border, Background, Border, Color, Element, Length, Shadow, Vector};
 use material_color_rs::dynamiccolor::MaterialDynamicColors as Roles;
 use material_color_rs::{DynamicScheme, Hct, TonalPalette, Variant};
@@ -468,24 +468,26 @@ pub fn clearable<'a, M: Clone + 'a>(
     field: impl Into<Element<'a, M>>,
     clear: Option<M>,
 ) -> Element<'a, M> {
-    let Some(clear) = clear else {
-        return field.into();
+    // Always a stack, or the first letter typed swaps the widget and drops its focus.
+    let overlay: Element<'a, M> = match clear {
+        Some(clear) => button(text("\u{00D7}").size(type_scale::TITLE_MEDIUM))
+            .padding([2, 10])
+            .on_press(clear)
+            .style(move |_theme, status| {
+                pill(
+                    Color {
+                        a: layer(status),
+                        ..c.on_surface
+                    },
+                    c.on_surface_variant,
+                )
+            })
+            .into(),
+        None => Space::new().into(),
     };
-    let button = button(text("\u{00D7}").size(type_scale::TITLE_MEDIUM))
-        .padding([2, 10])
-        .on_press(clear)
-        .style(move |_theme, status| {
-            pill(
-                Color {
-                    a: layer(status),
-                    ..c.on_surface
-                },
-                c.on_surface_variant,
-            )
-        });
     stack![
         field.into(),
-        container(button)
+        container(overlay)
             .width(Length::Fill)
             .height(Length::Fill)
             .align_x(iced::Alignment::End)

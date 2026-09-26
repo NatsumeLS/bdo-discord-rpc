@@ -241,6 +241,11 @@ pub fn refresh_profile(
                 )),
                 None => win::warn("Profile: Fetched, but it lists no Characters"),
             }
+            if fetched.hidden {
+                win::warn(
+                    "Profile: Levels, Guild and Stats are hidden (turn on Show Additional Info in the Family Info Privacy Settings)",
+                );
+            }
             if let Err(e) = profile::save_cache(&cache_path, &fetched) {
                 win::warn(&format!("Profile: Could not save the Cache ({e})"));
             }

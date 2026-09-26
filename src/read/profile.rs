@@ -9,6 +9,8 @@ use serde::{Deserialize, Serialize};
 
 const USER_AGENT: &str = concat!("bdo-discord-rpc/", env!("CARGO_PKG_VERSION"));
 const TIMEOUT: Duration = Duration::from_secs(15);
+// What the page puts in place of a value its owner has not made public.
+const LOCK: &str = "em.lock";
 
 #[derive(Serialize, Deserialize)]
 pub struct Character {
@@ -47,6 +49,7 @@ pub struct Profile {
     pub characters: Vec<Character>,
     pub url: Option<String>,
     pub fetched_at: i64,
+    pub hidden: bool,
 }
 
 impl Character {
@@ -203,6 +206,7 @@ pub fn parse(html: &str) -> Profile {
     profile.contribution = stat(&doc, "Max Contribution Points");
     profile.guild = stat(&doc, "Joined Guild");
     profile.created = stat(&doc, "Family Created On");
+    profile.hidden = Selector::parse(LOCK).is_ok_and(|lock| doc.select(&lock).next().is_some());
 
     if let (Ok(skills), Ok(level)) = (
         Selector::parse("ul.character_spec > li"),
@@ -237,7 +241,10 @@ fn stat(doc: &Html, title: &str) -> Option<String> {
             .next()
             .is_some_and(|found| collapse(&found.text().collect::<String>()) == title);
         if matches {
-            return text_of(item, "span.desc");
+            return text_of(item, LOCK)
+                .is_none()
+                .then(|| text_of(item, "span.desc"))
+                .flatten();
         }
     }
     None

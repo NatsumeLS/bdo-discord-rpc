@@ -28,6 +28,10 @@ Run it and it sits in the system tray. It shows your presence while the game is 
 - Right-click it for **Run at Startup**, **Reload Config** and **Quit**.
 - The icon is gray when the game is not running, amber when Discord is not connected or the config has an error, and green when the presence is live.
 
+## Adventurer Profile
+
+The Adventurer Profile hides its details by default. Your characters' names, classes and portraits are always shown, but their levels, your guild, gear score, energy, contribution points and life skills stay hidden until you make them public. Sign in on the website, open [Family Info Privacy Settings](https://blackdesert.pearlabyss.com/Asia/en-US/Game/Profile/AdventureSetting) and turn on **Show Additional Info**.
+
 ## Regions
 
 | Region | Status |

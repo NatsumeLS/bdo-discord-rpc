@@ -892,8 +892,8 @@ impl<'a> Watcher<'a> {
                             profile.and_then(Profile::main).map(describe),
                         ),
                         row(
-                            tr("overview.main_energy"),
-                            profile.and_then(|p| p.energy.clone()),
+                            tr("overview.family_created"),
+                            profile.and_then(|p| p.created.clone()),
                         ),
                         row(tr("overview.guild"), profile.and_then(|p| p.guild.clone())),
                         row(
@@ -901,12 +901,12 @@ impl<'a> Watcher<'a> {
                             profile.and_then(|p| p.gear_score.clone()),
                         ),
                         row(
-                            tr("overview.contribution"),
-                            profile.and_then(|p| p.contribution.clone()),
+                            tr("overview.energy"),
+                            profile.and_then(|p| p.energy.clone()),
                         ),
                         row(
-                            tr("overview.family_created"),
-                            profile.and_then(|p| p.created.clone()),
+                            tr("overview.contribution"),
+                            profile.and_then(|p| p.contribution.clone()),
                         ),
                         row(
                             tr("overview.profile_fetched"),

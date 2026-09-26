@@ -424,15 +424,6 @@ pub(super) fn general(state: &SettingsWindow) -> Element<'_, Message> {
             ),
             (
                 BLOCK,
-                dial(
-                    state,
-                    tr("general.min_update"),
-                    lens!(min_update_seconds),
-                    5..=600,
-                ),
-            ),
-            (
-                BLOCK,
                 dial(state, tr("general.poll"), lens!(poll_seconds), 1..=60),
             ),
             (

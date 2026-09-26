@@ -387,7 +387,6 @@ struct Watcher<'a> {
     derived: Derived,
 
     link: Link,
-    last_push: Option<Instant>,
     profile_retry: Backoff,
 
     prompted: HashSet<String>,
@@ -430,7 +429,6 @@ impl<'a> Watcher<'a> {
             game: None,
             session: Session::default(),
             link: Link::default(),
-            last_push: None,
             profile_retry: Backoff::new(PROFILE_MIN_BACKOFF, PROFILE_MAX_BACKOFF),
             prompted: HashSet::new(),
             prompt: win::ChildWindow::default(),
@@ -452,7 +450,6 @@ impl<'a> Watcher<'a> {
                 log("Config: Disabled, standing by");
                 // Not reset(): the retry schedule survives being switched off.
                 self.link.client = None;
-                self.last_push = None;
                 self.derived.last_sent = None;
                 self.game = None;
                 self.session = Session::default();
@@ -544,7 +541,6 @@ impl<'a> Watcher<'a> {
                 log("Game: Closed, clearing the Presence");
                 self.link.reset();
                 self.derived.last_sent = None;
-                self.last_push = None;
                 None
             }
         };
@@ -719,9 +715,6 @@ impl<'a> Watcher<'a> {
     }
 
     fn push(&mut self) {
-        let due = self
-            .last_push
-            .is_none_or(|t| t.elapsed().as_secs() >= self.config.min_update_seconds);
         let s = &self.session;
         let d = &self.derived;
         let region = self.region().unwrap_or_default();
@@ -734,7 +727,7 @@ impl<'a> Watcher<'a> {
             d.profile.as_ref(),
         );
         let wanted = build(&self.config, &s.stable, &ctx);
-        if wanted == d.last_sent || !due {
+        if wanted == d.last_sent {
             return;
         }
         let Some(presence) = self.link.client.as_mut() else {
@@ -749,7 +742,6 @@ impl<'a> Watcher<'a> {
             Ok(()) => {
                 log(&format!("Presence: {}", summarize(&wanted)));
                 self.derived.last_sent = wanted;
-                self.last_push = Some(Instant::now());
             }
             Err(e) => {
                 win::warn(&format!("Discord: {e}, will reconnect"));

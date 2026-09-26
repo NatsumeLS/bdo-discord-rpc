@@ -182,7 +182,6 @@ impl Page {
                     || config.language != saved.language
                     || config.client_id != saved.client_id
                     || config.debounce_seconds != saved.debounce_seconds
-                    || config.min_update_seconds != saved.min_update_seconds
                     || config.poll_seconds != saved.poll_seconds
                     || config.prompt_unknown_server != saved.prompt_unknown_server
                     || config.prompt_unknown_character != saved.prompt_unknown_character

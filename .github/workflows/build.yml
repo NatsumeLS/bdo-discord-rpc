@@ -51,5 +51,7 @@ jobs:
           if ($LASTEXITCODE -eq 0) { "$env:TAG is already released"; exit 0 }
           $prev = git tag --list 'v*' --merged HEAD --sort=-v:refname | Select-Object -First 1
           $range = if ($prev) { "$prev..HEAD" } else { "HEAD" }
-          git log $range --no-merges --pretty="- %s" > notes.md
+          $repo = "$env:GITHUB_SERVER_URL/$env:GITHUB_REPOSITORY"
+          git log $range --no-merges --pretty="- %s ([%h]($repo/commit/%H))" > notes.md
+          if ($prev) { "`n**Full Changelog**: $repo/compare/$prev...$env:TAG" >> notes.md }
           gh release create $env:TAG $env:ZIP --target $env:GITHUB_SHA --title $env:TAG --notes-file notes.md

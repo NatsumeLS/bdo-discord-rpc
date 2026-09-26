@@ -1,6 +1,7 @@
 use std::ffi::c_void;
 use std::fs::OpenOptions;
 use std::io::Write;
+use std::os::windows::ffi::OsStrExt;
 use std::os::windows::io::IntoRawHandle;
 use std::path::{Path, PathBuf};
 use std::process::Child;
@@ -12,6 +13,7 @@ use windows_sys::Win32::Foundation::{
     CloseHandle, GetLastError, ERROR_ALREADY_EXISTS, ERROR_FILE_NOT_FOUND, ERROR_SUCCESS,
     INVALID_HANDLE_VALUE, TRUE, WAIT_OBJECT_0,
 };
+use windows_sys::Win32::System::Com::{CoInitializeEx, COINIT_APARTMENTTHREADED};
 use windows_sys::Win32::System::Console::{
     AttachConsole, GetStdHandle, SetStdHandle, ATTACH_PARENT_PROCESS, STD_ERROR_HANDLE,
     STD_OUTPUT_HANDLE,
@@ -24,9 +26,12 @@ use windows_sys::Win32::System::Threading::{
     CreateEventW, CreateMutexW, OpenEventW, OpenMutexW, SetEvent, WaitForSingleObject,
     EVENT_MODIFY_STATE,
 };
+use windows_sys::Win32::UI::Shell::{
+    ILCreateFromPathW, ILFree, SHOpenFolderAndSelectItems, ShellExecuteW,
+};
 use windows_sys::Win32::UI::WindowsAndMessaging::{
     FindWindowW, SetForegroundWindow, ShowWindow, SystemParametersInfoW, SPI_GETWORKAREA,
-    SW_RESTORE,
+    SW_RESTORE, SW_SHOWNORMAL,
 };
 
 // The primary screen less the taskbar. Asked before any window opens, while
@@ -374,6 +379,37 @@ pub fn signal_config_changed() {
         unsafe {
             SetEvent(handle);
             CloseHandle(handle);
+        }
+    }
+}
+
+// Explorer misreads a long URL with a query and opens a folder instead.
+pub fn open_url(url: &str) {
+    unsafe {
+        ShellExecuteW(
+            std::ptr::null_mut(),
+            wide("open").as_ptr(),
+            wide(url).as_ptr(),
+            std::ptr::null(),
+            std::ptr::null(),
+            SW_SHOWNORMAL,
+        );
+    }
+}
+
+// `explorer /select,` opens nothing while another Explorer window is up.
+pub fn show_in_folder(path: &Path) {
+    let path: Vec<u16> = path
+        .as_os_str()
+        .encode_wide()
+        .chain(std::iter::once(0))
+        .collect();
+    unsafe {
+        CoInitializeEx(std::ptr::null(), COINIT_APARTMENTTHREADED as u32);
+        let item = ILCreateFromPathW(path.as_ptr());
+        if !item.is_null() {
+            SHOpenFolderAndSelectItems(item, 0, std::ptr::null(), 0);
+            ILFree(item);
         }
     }
 }

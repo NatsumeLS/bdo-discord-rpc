@@ -1,6 +1,5 @@
 use std::collections::BTreeMap;
 use std::io::{Read, Seek, SeekFrom};
-use std::os::windows::process::CommandExt;
 use std::path::{Path, PathBuf};
 use std::time::{Duration, SystemTime};
 
@@ -561,7 +560,7 @@ enum Message {
     OpenFolder,
     CopyLog,
     Resized(Size),
-    OpenUrl(&'static str),
+    OpenUrl(String),
     ThemeMode(&'static str),
     ThemePalette(m3::Palette),
     PickAccent(f32, f32, f32),
@@ -622,20 +621,15 @@ fn update(state: &mut SettingsWindow, message: Message) -> Task<Message> {
         Message::SelectPhase(phase) => state.phase = phase,
         Message::PhaseText(field, value) => state.edit_phase(|cfg| field.set(cfg, value)),
         Message::PhaseReport(report) => state.edit_phase(|cfg| cfg.report = report),
-        Message::OpenFolder => {
-            // Explorer ignores a quoted `/select,`, which `arg` adds for a path with spaces.
-            let _ = std::process::Command::new("explorer")
-                .raw_arg(format!("/select,\"{}\"", config::log_path().display()))
-                .spawn();
-        }
+        Message::OpenFolder => crate::win::show_in_folder(&config::log_path()),
         Message::CopyLog => {
             task = iced::clipboard::write(state.log.clone());
             state.message = Some((tr("log.copied").into(), true));
         }
         Message::Resized(size) => state.size = size,
-        Message::OpenUrl(url) => {
-            let _ = std::process::Command::new("explorer").arg(url).spawn();
-        }
+        // The shell runs whatever it is given, and the profile URL comes from a file.
+        Message::OpenUrl(url) if url.starts_with("https://") => crate::win::open_url(&url),
+        Message::OpenUrl(_) => {}
         Message::ThemeMode(mode) => {
             state.config.theme.mode = mode.to_string();
         }

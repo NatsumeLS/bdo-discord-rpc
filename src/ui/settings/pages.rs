@@ -58,7 +58,7 @@ pub(super) fn about(state: &SettingsWindow) -> Element<'_, Message> {
             icon_button(
                 state,
                 "github.com/NatsumeLS",
-                Some(Message::OpenUrl("https://github.com/NatsumeLS")),
+                Some(Message::OpenUrl("https://github.com/NatsumeLS".into())),
             ),
         ]
         .spacing(6)

@@ -24,10 +24,8 @@ pub(super) fn marked<'a>(
     control: Element<'a, Message>,
     dirty: bool,
 ) -> Element<'a, Message> {
-    if !dirty {
-        return control;
-    }
-    row![dot(c, true), control]
+    // Always a row, or the first edit swaps the widget and a field loses focus.
+    row![dot(c, dirty), control]
         .spacing(10)
         .align_y(iced::Alignment::Start)
         .into()

@@ -195,24 +195,36 @@ pub fn detect_family(user_data_dir: &Path) -> Option<String> {
         .max_by_key(|&(_, modified)| modified)
         .map(|(name, _)| name)
 }
-
 pub const CHARACTER_READ_WINDOW: Duration = Duration::from_secs(10);
 
-pub fn detect_character(user_data_dir: &Path, play_started: SystemTime) -> Option<String> {
+// Each character's folder, as its ID and path.
+fn characters(user_data_dir: &Path) -> impl Iterator<Item = (String, PathBuf)> {
     let children = |dir: PathBuf| std::fs::read_dir(dir).into_iter().flatten().flatten();
 
     children(user_data_dir.join("UserCache"))
-        .flat_map(|account| children(account.path()))
-        .flat_map(|region| children(region.path()))
+        .flat_map(move |account| children(account.path()))
+        .flat_map(move |region| children(region.path()))
         .filter_map(|character| {
             let name = character.file_name().to_string_lossy().into_owned();
-            if name.is_empty() || !name.chars().all(|c| c.is_ascii_digit()) {
-                return None;
-            }
+            (!name.is_empty() && name.chars().all(|c| c.is_ascii_digit()))
+                .then(|| (name, character.path()))
+        })
+}
+
+pub fn character_ids(user_data_dir: &Path) -> Vec<String> {
+    let mut ids: Vec<String> = characters(user_data_dir).map(|(id, _)| id).collect();
+    ids.sort();
+    ids.dedup();
+    ids
+}
+
+pub fn detect_character(user_data_dir: &Path, play_started: SystemTime) -> Option<String> {
+    characters(user_data_dir)
+        .filter_map(|(name, path)| {
             // Accessed, not modified: the client reads this file on entering
             // a character and writes it on leaving, so the newest write is
             // always the previous character.
-            let read_at = std::fs::metadata(character.path().join("gamevariable.xml"))
+            let read_at = std::fs::metadata(path.join("gamevariable.xml"))
                 .and_then(|m| m.accessed())
                 .ok()?;
             let gap = read_at

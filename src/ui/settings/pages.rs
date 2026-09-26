@@ -720,14 +720,24 @@ pub(super) fn names(state: &SettingsWindow, table: Table) -> Element<'_, Message
     if let Some(reason) = bad_key {
         page = page.push(text(reason).size(type_scale::BODY_MEDIUM).color(c.error));
     }
+    let snapshot = state.tray.snapshot.as_ref();
+    let seen: Vec<&String> = match table {
+        Table::Servers => snapshot
+            .and_then(|s| s.server_key.as_ref())
+            .into_iter()
+            .collect(),
+        Table::Characters => snapshot
+            .map(|s| s.character_ids.iter().collect())
+            .unwrap_or_default(),
+    };
+    page = page.push(prompt::picker(
+        c,
+        seen.into_iter().filter(|key| !entries.contains_key(*key)),
+        &pending.0,
+        move |key| Message::TablePendingKey(table, key),
+    ));
     let known = match table {
-        Table::Servers => crate::region::servers(
-            state
-                .tray
-                .snapshot
-                .as_ref()
-                .and_then(|s| s.service.as_deref()),
-        ),
+        Table::Servers => crate::region::servers(snapshot.and_then(|s| s.service.as_deref())),
         Table::Characters => state.characters.iter().collect(),
     };
     page.push(prompt::picker(

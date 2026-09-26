@@ -95,6 +95,10 @@ pub struct Snapshot {
     pub service: Option<String>,
     #[serde(default)]
     pub placeholders: BTreeMap<String, String>,
+    #[serde(default)]
+    pub server_key: Option<String>,
+    #[serde(default)]
+    pub character_ids: Vec<String>,
 }
 
 #[derive(Serialize, Deserialize, PartialEq)]
@@ -809,6 +813,10 @@ impl<'a> Watcher<'a> {
             health: status.health,
             line: status.line.clone(),
             service: game.and_then(|g| g.service.clone()),
+            server_key: stable.game_server.clone(),
+            character_ids: resolve_user_data_dir(config)
+                .map(|dir| game::character_ids(&dir))
+                .unwrap_or_default(),
             placeholders: {
                 let ctx = context(
                     config,

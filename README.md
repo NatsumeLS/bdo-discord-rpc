@@ -30,7 +30,7 @@ Run it and it sits in the system tray. It shows your presence while the game is 
 
 ## Adventurer Profile
 
-The Adventurer Profile hides its details by default. Your characters' names, classes and portraits are always shown, but their levels, your guild, gear score, energy, contribution points and life skills stay hidden until you make them public. Sign in on the website, open [Family Info Privacy Settings](https://blackdesert.pearlabyss.com/Asia/en-US/Game/Profile/AdventureSetting) and turn on **Show Additional Info**.
+The Adventurer Profile hides its details by default. Your characters' names, classes and portraits are always shown, but their levels, your guild, gear score, energy, contribution points and life skills stay hidden until you make them public. Sign in on your region's website, open your Adventurer Profile, click **Change Privacy Settings** and turn on **Show Additional Info**. When they are hidden, the tray's log says so and links your profile.
 
 ## Regions
 

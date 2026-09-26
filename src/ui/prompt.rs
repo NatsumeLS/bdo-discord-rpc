@@ -150,7 +150,8 @@ pub fn run(table: Table, key: Option<String>, service: Option<String>) -> i32 {
             error: None,
             scheme: Scheme::of(&config),
         };
-        (state, operation::focus(INPUT))
+        let window = iced::window::latest().and_then(iced::window::gain_focus);
+        (state, Task::batch([window, operation::focus(INPUT)]))
     };
 
     let window = iced::window::Settings {

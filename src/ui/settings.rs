@@ -103,7 +103,8 @@ pub fn run(page: Page) -> i32 {
             picker_accent: config.theme.accent.clone(),
             size,
         };
-        (state, refresh_later())
+        let window = iced::window::latest().and_then(iced::window::gain_focus);
+        (state, Task::batch([window, refresh_later()]))
     };
 
     let window = iced::window::Settings {

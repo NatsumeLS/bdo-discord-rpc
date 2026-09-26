@@ -17,6 +17,7 @@ serde_json = "1"
 ureq = "2"
 tray-icon = "0.25"
 iced = { version = "0.14", default-features = false, features = [
+    "wgpu",
     "tiny-skia",
     "thread-pool",
     "image-without-codecs",

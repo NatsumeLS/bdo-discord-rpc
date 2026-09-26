@@ -168,8 +168,13 @@ pub(super) fn overview(state: &SettingsWindow) -> Element<'_, Message> {
     let mut groups = Vec::new();
     for group in snapshot.groups.iter().filter(|g| !g.rows.is_empty()) {
         let mut rows = column![heading(state, &group.title)].spacing(6);
-        for (label, value) in &group.rows {
-            rows = rows.push(pair(state, label, value.clone()));
+        for row in &group.rows {
+            rows = rows.push(flagged_pair(
+                state,
+                &row.label,
+                row.value.clone(),
+                row.attention,
+            ));
         }
         let height = GROUP_HEADING + PAIR_ROW * group.rows.len() as f32;
         groups.push((height, rows.into()));
@@ -350,6 +355,16 @@ fn heading<'a>(state: &SettingsWindow, label: &'a str) -> Element<'a, Message> {
 }
 
 fn pair<'a>(state: &SettingsWindow, label: &'a str, value: String) -> Element<'a, Message> {
+    flagged_pair(state, label, value, false)
+}
+
+// A value the user has something to do about is shown in the error color.
+fn flagged_pair<'a>(
+    state: &SettingsWindow,
+    label: &'a str,
+    value: String,
+    attention: bool,
+) -> Element<'a, Message> {
     let c = state.scheme();
     row![
         container(
@@ -360,7 +375,7 @@ fn pair<'a>(state: &SettingsWindow, label: &'a str, value: String) -> Element<'a
         .width(Length::Fixed(140.0)),
         text(value)
             .size(type_scale::BODY_MEDIUM)
-            .color(c.on_surface),
+            .color(if attention { c.error } else { c.on_surface }),
     ]
     .spacing(12)
     .into()

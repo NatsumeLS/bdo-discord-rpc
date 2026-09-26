@@ -118,7 +118,15 @@ pub struct Detected {
 #[derive(Serialize, Deserialize, PartialEq)]
 pub struct Group {
     pub title: String,
-    pub rows: Vec<(String, String)>,
+    pub rows: Vec<Row>,
+}
+
+#[derive(Serialize, Deserialize, PartialEq)]
+pub struct Row {
+    pub label: String,
+    pub value: String,
+    #[serde(default)]
+    pub attention: bool,
 }
 
 impl Snapshot {
@@ -830,8 +838,16 @@ impl<'a> Watcher<'a> {
     }
 
     fn snapshot(&self, status: &Status) -> Snapshot {
-        let row = |label: &str, value: Option<String>| value.map(|v| (label.to_string(), v));
-        let group = |title: &str, rows: Vec<Option<(String, String)>>| Group {
+        // A flagged row is one the user has something to do about.
+        let flagged = |label: &str, value: Option<(String, bool)>| {
+            value.map(|(value, attention)| Row {
+                label: label.to_string(),
+                value,
+                attention,
+            })
+        };
+        let row = |label: &str, value: Option<String>| flagged(label, value.map(|v| (v, false)));
+        let group = |title: &str, rows: Vec<Option<Row>>| Group {
             title: title.to_string(),
             rows: rows.into_iter().flatten().collect(),
         };
@@ -901,16 +917,20 @@ impl<'a> Watcher<'a> {
                         ),
                         row(tr("overview.phase_since"), stamp(stable.phase_since)),
                         row(tr("overview.session_start"), stamp(stable.session_start)),
-                        row(
+                        flagged(
                             tr("overview.server"),
                             stable.game_server.as_deref().map(|key| {
                                 match config.servers.get(key) {
-                                    Some(name) => {
+                                    Some(name) => (
                                         t!("overview.server_named", key = key, name = name)
-                                    }
-                                    None => t!("overview.server_unnamed", key = key),
+                                            .into_owned(),
+                                        false,
+                                    ),
+                                    None => (
+                                        t!("overview.server_unnamed", key = key).into_owned(),
+                                        true,
+                                    ),
                                 }
-                                .into_owned()
                             }),
                         ),
                     ],
@@ -918,43 +938,48 @@ impl<'a> Watcher<'a> {
                 group(
                     tr("overview.you"),
                     vec![
-                        row(
+                        flagged(
                             tr("overview.family"),
                             self.derived.family.clone().map(|name| {
                                 if self.families > 1
                                     && config.identity.family_name.trim().is_empty()
                                 {
-                                    t!(
+                                    let several = t!(
                                         "overview.family_several",
                                         name = name,
                                         count = self.families
-                                    )
-                                    .into_owned()
+                                    );
+                                    (several.into_owned(), true)
                                 } else {
-                                    name
+                                    (name, false)
                                 }
                             }),
                         ),
-                        row(
+                        flagged(
                             tr("overview.character"),
                             self.session.character.as_deref().map(|key| {
                                 match config.characters.get(key) {
                                     Some(name) if self.derived.unmatched.as_ref() == Some(name) => {
-                                        t!(
+                                        let missing = t!(
                                             "overview.character_not_on_profile",
                                             key = key,
                                             name = name
-                                        )
+                                        );
+                                        (missing.into_owned(), true)
                                     }
                                     Some(name) => {
                                         let who = profile
                                             .and_then(|p| p.character(name))
                                             .map_or_else(|| name.clone(), describe);
-                                        t!("overview.character_named", key = key, name = who)
+                                        let named =
+                                            t!("overview.character_named", key = key, name = who);
+                                        (named.into_owned(), false)
                                     }
-                                    None => t!("overview.character_unnamed", key = key),
+                                    None => (
+                                        t!("overview.character_unnamed", key = key).into_owned(),
+                                        true,
+                                    ),
                                 }
-                                .into_owned()
                             }),
                         ),
                         row(

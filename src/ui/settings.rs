@@ -782,16 +782,18 @@ fn page(state: &SettingsWindow) -> Element<'_, Message> {
 fn status_bar(state: &SettingsWindow) -> Element<'_, Message> {
     let c = state.scheme();
 
-    let (dot, line) = match state.tray.snapshot.as_ref() {
-        Some(snapshot) => (
-            match snapshot.health {
-                Health::Idle => c.outline,
-                Health::Waiting => c.on_surface_variant,
-                Health::Live => c.primary,
-            },
-            snapshot.line.clone(),
+    // Waiting is the tray's amber: Discord not connected or a config error.
+    let (dot, ink, line) = match state.tray.snapshot.as_ref() {
+        Some(snapshot) => match snapshot.health {
+            Health::Idle => (c.outline, c.on_surface_variant, snapshot.line.clone()),
+            Health::Waiting => (c.error, c.error, snapshot.line.clone()),
+            Health::Live => (c.primary, c.on_surface_variant, snapshot.line.clone()),
+        },
+        None => (
+            c.outline,
+            c.on_surface_variant,
+            tr("status.tray_not_running").to_string(),
         ),
-        None => (c.outline, tr("status.tray_not_running").to_string()),
     };
 
     container(
@@ -799,9 +801,7 @@ fn status_bar(state: &SettingsWindow) -> Element<'_, Message> {
             container(Space::new().width(8).height(8)).style(move |_theme| {
                 container::background(dot).border(border::rounded(shape::FULL))
             }),
-            text(line)
-                .size(type_scale::BODY_MEDIUM)
-                .color(c.on_surface_variant),
+            text(line).size(type_scale::BODY_MEDIUM).color(ink),
         ]
         .spacing(10)
         .align_y(iced::Alignment::Center),

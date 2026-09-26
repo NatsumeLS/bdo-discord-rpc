@@ -46,3 +46,4 @@ In a region that is not yet supported, the presence should still work, without t
 
 - The game only reports server and character IDs, so it asks you to name each new server and character, and suggests the known names.
 - Start it before entering a character. Otherwise it shows your main character until you switch.
+- One account per PC works best. With several, the family name is taken from whichever account played most recently, so set **Family Name** in the settings, and the character ID suggestions list every account's characters.

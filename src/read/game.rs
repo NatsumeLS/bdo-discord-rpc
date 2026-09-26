@@ -176,10 +176,11 @@ pub fn default_user_data_dir() -> Option<PathBuf> {
     dirs::document_dir().map(|d| d.join("Black Desert"))
 }
 
-pub fn detect_family(user_data_dir: &Path) -> Option<String> {
-    let entries = std::fs::read_dir(user_data_dir.join("UserCache")).ok()?;
-
-    entries
+// One folder per family, beside the numbered account folders.
+fn families(user_data_dir: &Path) -> impl Iterator<Item = (String, SystemTime)> {
+    std::fs::read_dir(user_data_dir.join("UserCache"))
+        .into_iter()
+        .flatten()
         .flatten()
         .filter(|e| e.file_type().is_ok_and(|t| t.is_dir()))
         .map(|e| {
@@ -192,8 +193,16 @@ pub fn detect_family(user_data_dir: &Path) -> Option<String> {
         .filter(|(name, _)| {
             !name.is_empty() && name != "-1" && !name.chars().all(|c| c.is_ascii_digit())
         })
+}
+
+pub fn detect_family(user_data_dir: &Path) -> Option<String> {
+    families(user_data_dir)
         .max_by_key(|&(_, modified)| modified)
         .map(|(name, _)| name)
+}
+
+pub fn family_count(user_data_dir: &Path) -> usize {
+    families(user_data_dir).count()
 }
 pub const CHARACTER_READ_WINDOW: Duration = Duration::from_secs(10);
 

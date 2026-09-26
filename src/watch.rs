@@ -393,6 +393,8 @@ struct Watcher<'a> {
     link: Link,
     profile_retry: Backoff,
 
+    families: usize,
+
     prompted: HashSet<String>,
     prompt: win::ChildWindow,
 
@@ -434,6 +436,7 @@ impl<'a> Watcher<'a> {
             session: Session::default(),
             link: Link::default(),
             profile_retry: Backoff::new(PROFILE_MIN_BACKOFF, PROFILE_MAX_BACKOFF),
+            families: 0,
             prompted: HashSet::new(),
             prompt: win::ChildWindow::default(),
             status_path: config::status_path(),
@@ -471,6 +474,7 @@ impl<'a> Watcher<'a> {
         };
         game.tail.poll(&mut self.session.state);
 
+        self.count_families();
         self.read_family();
         self.read_character();
         self.read_profile();
@@ -549,6 +553,18 @@ impl<'a> Watcher<'a> {
             }
         };
         self.session = Session::default();
+    }
+
+    fn count_families(&mut self) {
+        let families =
+            resolve_user_data_dir(&self.config).map_or(0, |dir| game::family_count(&dir));
+        if families > 1 && self.families <= 1 && self.config.identity.family_name.trim().is_empty()
+        {
+            win::warn(&format!(
+                "Family: {families} Accounts in UserCache, using the most recent (set the Family Name to choose one)"
+            ));
+        }
+        self.families = families;
     }
 
     fn read_family(&mut self) {
@@ -872,7 +888,23 @@ impl<'a> Watcher<'a> {
                 group(
                     tr("overview.you"),
                     vec![
-                        row(tr("overview.family"), self.derived.family.clone()),
+                        row(
+                            tr("overview.family"),
+                            self.derived.family.clone().map(|name| {
+                                if self.families > 1
+                                    && config.identity.family_name.trim().is_empty()
+                                {
+                                    t!(
+                                        "overview.family_several",
+                                        name = name,
+                                        count = self.families
+                                    )
+                                    .into_owned()
+                                } else {
+                                    name
+                                }
+                            }),
+                        ),
                         row(
                             tr("overview.character"),
                             self.session.character.as_deref().map(|key| {

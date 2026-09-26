@@ -73,6 +73,7 @@ server_unnamed = "%{key} (unnamed)"
 character_named = "%{name} (%{key})"
 character_unnamed = "Unnamed (%{key})"
 character_not_on_profile = "%{name}, not on the Profile (%{key})"
+family_several = "%{name}, one of %{count} Accounts, set the Family Name to choose"
 class = "%{name}, %{class}"
 class_level = "%{who}, Lv. %{level}"
 

@@ -99,6 +99,20 @@ pub struct Snapshot {
     pub server_key: Option<String>,
     #[serde(default)]
     pub character_ids: Vec<String>,
+    #[serde(default)]
+    pub detected: Detected,
+}
+
+// What each field that fills itself when blank would use right now.
+#[derive(Serialize, Deserialize, PartialEq, Default)]
+#[serde(default)]
+pub struct Detected {
+    pub family: Option<String>,
+    pub region: Option<String>,
+    pub game_root: Option<String>,
+    pub user_data_dir: Option<String>,
+    pub profile_url: Option<String>,
+    pub search_url: Option<String>,
 }
 
 #[derive(Serialize, Deserialize, PartialEq)]
@@ -833,6 +847,22 @@ impl<'a> Watcher<'a> {
             character_ids: resolve_user_data_dir(config)
                 .map(|dir| game::character_ids(&dir))
                 .unwrap_or_default(),
+            detected: {
+                let service = game.and_then(|g| g.service.as_deref());
+                Detected {
+                    family: resolve_user_data_dir(config).and_then(|dir| game::detect_family(&dir)),
+                    region: service.map(region::name),
+                    game_root: game.map(|g| g.root.display().to_string()),
+                    user_data_dir: game::default_user_data_dir()
+                        .map(|dir| dir.display().to_string()),
+                    profile_url: self
+                        .derived
+                        .profile_url
+                        .clone()
+                        .or_else(|| profile.and_then(|p| p.url.clone())),
+                    search_url: service.and_then(region::get).map(|r| r.search.clone()),
+                }
+            },
             placeholders: {
                 let ctx = context(
                     config,

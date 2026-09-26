@@ -391,6 +391,20 @@ fn language(state: &SettingsWindow) -> Element<'_, Message> {
 // Estimated heights for `flow`: a switch, and a labeled field, slider or chip row.
 const LINE: f32 = 24.0;
 const BLOCK: f32 = 72.0;
+
+// A blank field shows the value it would use, or its hint when nothing was found.
+fn detected<'a>(
+    state: &'a SettingsWindow,
+    value: fn(&crate::watch::Detected) -> &Option<String>,
+    hint: &'a str,
+) -> &'a str {
+    state
+        .tray
+        .snapshot
+        .as_ref()
+        .and_then(|s| value(&s.detected).as_deref())
+        .unwrap_or(hint)
+}
 // One label and value row on Overview and the heading above a group of them.
 const PAIR_ROW: f32 = 24.0;
 const GROUP_HEADING: f32 = 28.0;
@@ -473,7 +487,7 @@ pub(super) fn identity(state: &SettingsWindow) -> Element<'_, Message> {
                     state,
                     tr("identity.family"),
                     lens!(identity.family_name),
-                    tr("identity.family_hint"),
+                    detected(state, |d| &d.family, tr("identity.family_hint")),
                     |_| None,
                 ),
             ),
@@ -483,7 +497,7 @@ pub(super) fn identity(state: &SettingsWindow) -> Element<'_, Message> {
                     state,
                     tr("identity.region"),
                     lens!(identity.region_name),
-                    tr("identity.region_hint"),
+                    detected(state, |d| &d.region, tr("identity.region_hint")),
                     |_| None,
                 ),
             ),
@@ -543,7 +557,7 @@ pub(super) fn profile(state: &SettingsWindow) -> Element<'_, Message> {
                     state,
                     tr("profile.url"),
                     lens!(profile.url),
-                    tr("profile.url_hint"),
+                    detected(state, |d| &d.profile_url, tr("profile.url_hint")),
                     check::url,
                 ),
             ),
@@ -553,7 +567,7 @@ pub(super) fn profile(state: &SettingsWindow) -> Element<'_, Message> {
                     state,
                     tr("profile.search"),
                     lens!(profile.search_url),
-                    tr("profile.search_hint"),
+                    detected(state, |d| &d.search_url, tr("profile.search_hint")),
                     check::url,
                 ),
             ),
@@ -581,7 +595,7 @@ pub(super) fn paths(state: &SettingsWindow) -> Element<'_, Message> {
                     state,
                     tr("paths.game"),
                     lens!(paths.game_root),
-                    tr("paths.game_hint"),
+                    detected(state, |d| &d.game_root, tr("paths.game_hint")),
                     check::game_folder,
                 ),
             ),
@@ -591,7 +605,7 @@ pub(super) fn paths(state: &SettingsWindow) -> Element<'_, Message> {
                     state,
                     tr("paths.user_data"),
                     lens!(paths.user_data_dir),
-                    tr("paths.user_data_hint"),
+                    detected(state, |d| &d.user_data_dir, tr("paths.user_data_hint")),
                     check::user_data,
                 ),
             ),

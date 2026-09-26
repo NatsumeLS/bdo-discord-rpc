@@ -419,7 +419,7 @@ pub(super) fn general(state: &SettingsWindow) -> Element<'_, Message> {
                     state,
                     tr("general.debounce"),
                     lens!(debounce_seconds),
-                    0..=120,
+                    0..=60,
                 ),
             ),
             (

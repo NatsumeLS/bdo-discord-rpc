@@ -21,7 +21,7 @@ pub struct Character {
     pub class_image: Option<String>,
 }
 
-// The page's own English names, in the page's order.
+// In the order of the page's `icn_spec01` to `icn_spec11` icons.
 pub const LIFE_SKILLS: [&str; 11] = [
     "Gathering",
     "Fishing",
@@ -75,15 +75,15 @@ impl Profile {
         self.characters.iter().find(|c| c.name == name)
     }
 
-    // "Nov 10, 2023, 18:53 (UTC+8)" reads as "Nov 10, 2023".
+    // "Nov 10, 2023, 18:53 (UTC+8)" reads as "Nov 10, 2023", and each
+    // region's own format loses its time the same way.
     pub fn created_date(&self) -> Option<String> {
-        let created = self.created.as_deref()?;
-        let mut parts = created.splitn(3, ", ");
-        let day = parts.next()?;
-        Some(match parts.next() {
-            Some(year) => format!("{day}, {year}"),
-            None => day.to_string(),
-        })
+        let created = self.created.as_deref()?.split(" (").next()?.trim();
+        let date = match created.rsplit_once(' ') {
+            Some((date, time)) if time.contains(':') => date,
+            _ => created,
+        };
+        Some(date.trim_end_matches(',').to_string())
     }
 }
 
@@ -201,19 +201,27 @@ pub fn parse(html: &str) -> Profile {
     }
 
     profile.family = text_of(&doc, "p.nick");
-    profile.gear_score = stat(&doc, "Max Gear Score");
-    profile.energy = stat(&doc, "Energy");
-    profile.contribution = stat(&doc, "Max Contribution Points");
-    profile.guild = stat(&doc, "Joined Guild");
-    profile.created = stat(&doc, "Family Created On");
+    // By position, since every label is in the site's language.
+    let stats = stats(&doc);
+    let stat = |index: usize| stats.get(index).cloned().flatten();
+    profile.created = stat(0);
+    profile.guild = stat(1);
+    profile.gear_score = stat(2);
+    profile.energy = stat(3);
+    profile.contribution = stat(4);
     profile.hidden = Selector::parse(LOCK).is_ok_and(|lock| doc.select(&lock).next().is_some());
 
-    if let (Ok(skills), Ok(level)) = (
+    if let (Ok(skills), Ok(level), Ok(icon)) = (
         Selector::parse("ul.character_spec > li"),
         Selector::parse("span.spec_level"),
+        Selector::parse("span.icon_spec"),
     ) {
         for item in doc.select(&skills) {
-            let Some(name) = text_of(item, "span.spec_name") else {
+            let Some(name) = item
+                .select(&icon)
+                .next()
+                .and_then(|found| found.value().classes().find_map(skill_of))
+            else {
                 continue;
             };
             // "Skilled<em>9</em>" has no space of its own between the two.
@@ -223,7 +231,7 @@ pub fn parse(html: &str) -> Profile {
                 .map(|found| collapse(&found.text().collect::<Vec<_>>().join(" ")))
                 .filter(|text| !text.is_empty());
             if let Some(grade) = grade {
-                profile.life_skills.insert(name, grade);
+                profile.life_skills.insert(name.to_string(), grade);
             }
         }
     }
@@ -231,23 +239,25 @@ pub fn parse(html: &str) -> Profile {
     profile
 }
 
-fn stat(doc: &Html, title: &str) -> Option<String> {
-    let li = Selector::parse("li").ok()?;
-    let title_sel = Selector::parse("span.title").ok()?;
-
-    for item in doc.select(&li) {
-        let matches = item
-            .select(&title_sel)
-            .next()
-            .is_some_and(|found| collapse(&found.text().collect::<String>()) == title);
-        if matches {
-            return text_of(item, LOCK)
+// Created, guild, gear score, energy, contribution, with None for a hidden one.
+fn stats(doc: &Html) -> Vec<Option<String>> {
+    let Ok(items) = Selector::parse("ul.line_list > li") else {
+        return Vec::new();
+    };
+    doc.select(&items)
+        .map(|item| {
+            text_of(item, LOCK)
                 .is_none()
                 .then(|| text_of(item, "span.desc"))
-                .flatten();
-        }
-    }
-    None
+                .flatten()
+        })
+        .collect()
+}
+
+// "icn_spec01" is the first of `LIFE_SKILLS`.
+fn skill_of(class: &str) -> Option<&'static str> {
+    let index: usize = class.strip_prefix("icn_spec")?.parse().ok()?;
+    LIFE_SKILLS.get(index.checked_sub(1)?).copied()
 }
 
 fn text_of<'a>(within: impl Selectable<'a>, selector: &str) -> Option<String> {

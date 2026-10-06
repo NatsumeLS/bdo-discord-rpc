@@ -217,12 +217,10 @@ impl Config {
     }
 
     pub fn server_name(&self, key: &str) -> String {
-        match self.servers.get(key) {
-            Some(name) => name.clone(),
-            // An instance is no server you could pick, so it goes by its area.
-            None => crate::region::instance(key)
-                .map_or_else(|| key.to_string(), |place| place.territory.clone()),
-        }
+        self.servers
+            .get(key)
+            .cloned()
+            .unwrap_or_else(|| key.to_string())
     }
 }
 

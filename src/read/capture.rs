@@ -57,7 +57,7 @@ struct Node {
 }
 
 /// Where the character is, by node and the territory that node is in.
-#[derive(Clone, Default, PartialEq, Deserialize)]
+#[derive(Clone, Default, PartialEq)]
 pub struct Place {
     pub node: String,
     pub territory: String,

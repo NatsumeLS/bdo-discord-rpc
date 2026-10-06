@@ -756,11 +756,8 @@ impl<'a> Watcher<'a> {
         // Each block re-tests the prompt, so two unknown keys arriving
         // together are asked about one after the other.
         if self.config.prompt_unknown_server && !self.prompt.is_open() {
-            // An instance is already named by regions.toml.
             if let Some(key) = self.session.stable.game_server.clone() {
-                if region::instance(&key).is_none() {
-                    self.ask_name(Table::Servers, &key);
-                }
+                self.ask_name(Table::Servers, &key);
             }
         }
         if self.config.prompt_unknown_character && !self.prompt.is_open() {
@@ -949,18 +946,11 @@ impl<'a> Watcher<'a> {
         captured
     }
 
-    // Coordinates in an instance overlap the main map, so its nodes would lie.
-    // The raw server rather than the debounced one, or the main map's node
-    // shows for the length of the debounce after dropping in.
     fn place(&self, captured: &Captured) -> Place {
-        let state = &self.session.state;
-        if state.phase != Some(Phase::Play) {
+        if self.session.state.phase != Some(Phase::Play) {
             return Place::default();
         }
-        match state.game_server.as_deref().and_then(region::instance) {
-            Some(found) => found.clone(),
-            None => captured.place.clone(),
-        }
+        captured.place.clone()
     }
 
     /// A name the user gave the character, or else its name in game.
@@ -1166,15 +1156,6 @@ impl<'a> Watcher<'a> {
                                     Some(name) => (
                                         t!("overview.server_named", key = key, name = name)
                                             .into_owned(),
-                                        false,
-                                    ),
-                                    None if region::instance(key).is_some() => (
-                                        t!(
-                                            "overview.server_named",
-                                            key = key,
-                                            name = config.server_name(key)
-                                        )
-                                        .into_owned(),
                                         false,
                                     ),
                                     None => (

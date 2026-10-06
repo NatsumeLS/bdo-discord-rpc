@@ -1,6 +1,8 @@
 # One table per service, named after the TYPE the game writes in service.ini.
 # name: how the region is shown. search: the Adventurer Profile search, with
 # {family} where the family name goes. servers: names as the game lists them.
+# instances: servers that are a separate area rather than a channel, by key,
+# with the territory and node shown while there.
 
 [ASIA]
 name = "Asia"
@@ -40,3 +42,4 @@ servers = [
     "Kamasylvia",
     "Edania",
 ]
+instances = { "game35.sg" = { territory = "Abyss One", node = "The Magnus" } }

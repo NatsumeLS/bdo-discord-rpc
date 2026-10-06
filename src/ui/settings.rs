@@ -309,7 +309,11 @@ impl PhaseField {
                 tr("phases.hint_no_image")
             }
             PhaseField::SmallImage => tr("phases.hint_game_icon"),
-            PhaseField::LargeText => "",
+            // Without an image the game icon takes the slot, captioned with its name.
+            PhaseField::LargeText if cfg.large_image.trim().is_empty() => {
+                tr("phases.hint_game_name")
+            }
+            PhaseField::LargeText => tr("phases.hint_no_hover"),
             PhaseField::SmallText => tr("phases.hint_small_text"),
             PhaseField::ButtonLabel
             | PhaseField::ButtonUrl

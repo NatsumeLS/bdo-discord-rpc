@@ -20,6 +20,17 @@ jobs:
 
       - uses: Swatinem/rust-cache@v2
 
+      - name: Npcap SDK
+        shell: pwsh
+        run: |
+          $zip = "$env:RUNNER_TEMP/npcap-sdk.zip"
+          Invoke-WebRequest https://npcap.com/dist/npcap-sdk-1.16.zip -OutFile $zip
+          $hash = (Get-FileHash $zip -Algorithm SHA256).Hash
+          if ($hash -ne "F0A8BE7778EE3AE1B99BBBECB27A3FF0F6C111A4093F1C78C5C5A099607184DB") { throw "Npcap SDK hash mismatch: $hash" }
+          Expand-Archive $zip "$env:RUNNER_TEMP/npcap-sdk"
+          "LIBPCAP_LIBDIR=$env:RUNNER_TEMP/npcap-sdk/Lib/x64" >> $env:GITHUB_ENV
+          "LIBPCAP_VER=1.10.6" >> $env:GITHUB_ENV
+
       - run: cargo build --release --locked
 
       - name: Stage

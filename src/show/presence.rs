@@ -1,4 +1,5 @@
 use crate::config::Config;
+use crate::read::capture::Captured;
 use crate::read::log_tail::GameState;
 use crate::read::profile::{Profile, LIFE_SKILLS};
 
@@ -6,6 +7,8 @@ pub struct Context {
     pub family: String,
     pub region: String,
     pub server: String,
+    pub territory: String,
+    pub node: String,
     pub phase: String,
     pub character: String,
     pub class: String,
@@ -32,9 +35,11 @@ pub fn context(
     region: &str,
     character: Option<&str>,
     profile: Option<&Profile>,
+    captured: &Captured,
 ) -> Context {
     let main = profile.and_then(Profile::main);
     let text = |value: Option<&String>| value.cloned().unwrap_or_default();
+    let place = &captured.place;
 
     // A detected character never borrows the main's details, it reads as Unknown.
     let detected = config
@@ -42,9 +47,20 @@ pub fn context(
         .show_character
         .then_some(character)
         .flatten();
-    let named = detected.and_then(|key| config.characters.get(key));
+    // A name the user gave it, or else its name in game from the capture.
+    let named = detected.and_then(|key| {
+        config.characters.get(key).cloned().or_else(|| {
+            captured
+                .character
+                .as_ref()
+                .filter(|(id, _)| id == key)
+                .map(|(_, name)| name.clone())
+        })
+    });
     let current = match detected {
-        Some(_) => named.and_then(|name| profile.and_then(|p| p.character(name))),
+        Some(_) => named
+            .as_deref()
+            .and_then(|name| profile.and_then(|p| p.character(name))),
         None => main,
     };
     let known = |value: Option<String>| match detected {
@@ -70,9 +86,11 @@ pub fn context(
             (true, Some(host)) => config.server_name(host),
             _ => String::new(),
         },
+        territory: place.territory.clone(),
+        node: place.node.clone(),
         phase: state.phase.map(|p| p.key().to_string()).unwrap_or_default(),
         character: match detected {
-            Some(_) => known(named.cloned()),
+            Some(_) => known(named.clone()),
             None if config.identity.show_character => {
                 main.map(|c| c.name.clone()).unwrap_or_default()
             }
@@ -148,6 +166,8 @@ pub const PLACEHOLDERS: &[Placeholder] = &[
     p("session", "region", |c| &c.region),
     p("session", "server", |c| &c.server),
     p("session", "phase", |c| &c.phase),
+    p("location", "territory", |c| &c.territory),
+    p("location", "node", |c| &c.node),
     p("character", "character", |c| &c.character),
     p("character", "class", |c| &c.class),
     p("character", "level", |c| &c.level),

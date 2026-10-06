@@ -15,6 +15,7 @@ use std::sync::atomic::Ordering;
 use std::sync::Arc;
 use std::time::Duration;
 
+use crate::read::capture::Captured;
 use crate::read::game::{self, GameFinder};
 use crate::read::log_tail::{GameState, LogTail};
 use crate::show::discord;
@@ -40,6 +41,7 @@ fn main() {
             _ => settings::Page::Overview,
         }),
         Some("--probe") => probe(),
+        Some("--capture") => read::capture::run(args.get(1).map(String::as_str)),
         Some("--help" | "-h") => {
             print_help();
             0
@@ -63,6 +65,10 @@ fn print_help() {
         ("", "Run in the System Tray and update Discord"),
         ("--settings", "Open the Settings Window"),
         ("--probe", "Print what can be read right now, then exit"),
+        (
+            "--capture [dump-file]",
+            "Print the Game's Network Frames until stopped",
+        ),
         (
             "--name-server <server-key> [service]",
             "Ask for the Name of that Server",
@@ -93,6 +99,10 @@ fn run() -> i32 {
     }
 
     let shared = Arc::new(Shared::default());
+    {
+        let shared = Arc::clone(&shared);
+        std::thread::spawn(move || read::capture::follow(&shared));
+    }
     let worker = {
         let shared = Arc::clone(&shared);
         std::thread::spawn(move || watch::watch(&shared))
@@ -203,6 +213,9 @@ fn probe() -> i32 {
                 or_unknown(&region),
                 service.as_deref().unwrap_or("no service.ini TYPE")
             );
+            for (local, remote, state) in process.pid.map(game::connections).unwrap_or_default() {
+                println!("Connection: {local} -> {remote} (state {state})");
+            }
 
             let mut tail = LogTail::new(root, process.started_at);
             tail.poll(&mut state);
@@ -264,6 +277,7 @@ fn probe() -> i32 {
         &region,
         character.as_deref(),
         profile.as_ref(),
+        &Captured::default(),
     );
 
     println!();

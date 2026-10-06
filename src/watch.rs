@@ -9,6 +9,7 @@ use serde::{Deserialize, Serialize};
 
 use crate::config::{self, Config, Table};
 use crate::phase::{self, Phase};
+use crate::read::capture::{CaptureState, Captured, Place};
 use crate::read::game::{self, GameFinder, GameProcess};
 use crate::read::log_tail::{GameState, LogTail};
 use crate::read::profile::{self, Profile, LIFE_SKILLS};
@@ -141,11 +142,16 @@ pub struct Shared {
     pub status: Mutex<Status>,
     pub quit: AtomicBool,
     pub config_error: AtomicBool,
+    pub captured: Mutex<Captured>,
+    pub capture: Mutex<CaptureState>,
+    /// What the server hosts end in, like `sg.pearl-bdo.com`, from the log.
+    pub server_domain: Mutex<Option<String>>,
 }
 
 pub fn resolve_game(config: &Config, finder: &mut GameFinder) -> Option<GameProcess> {
     match non_empty(&config.paths.game_root) {
         Some(root) => Some(GameProcess {
+            pid: None,
             root: root.into(),
             started_at: None,
         }),
@@ -210,7 +216,15 @@ pub fn refresh_profile(
 
     let cache_path = config::profile_cache_path();
     if profile.is_none() {
-        *profile = profile::load_cache(&cache_path);
+        // A cache for another family or another URL would stand in for an hour.
+        *profile = profile::load_cache(&cache_path).filter(|cached| {
+            match non_empty(&config.profile.url) {
+                Some(wanted) => cached.url.as_deref() == Some(wanted.as_str()),
+                None => family
+                    .zip(cached.family.as_deref())
+                    .is_none_or(|(wanted, found)| wanted.eq_ignore_ascii_case(found)),
+            }
+        });
         if let Some(cached) = profile.as_ref() {
             log(&format!(
                 "Profile: Loaded from the Cache, fetched {}",
@@ -308,8 +322,10 @@ impl Derived {
 // or saving a name from the prompt would throw the character reading away.
 struct Game {
     root: PathBuf,
+    started_at: Option<SystemTime>,
     tail: LogTail,
     service: Option<String>,
+    cap_warned: bool,
 }
 
 struct Session {
@@ -320,6 +336,7 @@ struct Session {
     character: Option<String>,
     read_for: Option<i64>,
     missed_for: Option<i64>,
+    capture_missed_for: Option<i64>,
 }
 
 impl Default for Session {
@@ -332,6 +349,7 @@ impl Default for Session {
             character: None,
             read_for: None,
             missed_for: None,
+            capture_missed_for: None,
         }
     }
 }
@@ -495,6 +513,14 @@ impl<'a> Watcher<'a> {
             return Status::new(Health::Idle, tr("status.waiting_for_game"));
         };
         game.tail.poll(&mut self.session.state);
+        if game.tail.capped && !game.cap_warned {
+            game.cap_warned = true;
+            win::warn(
+                "Log File: The Game stopped writing it at its Size Cap, so it has nothing new until the Game restarts",
+            );
+        }
+        self.follow_capture();
+        self.check_capture();
 
         self.count_families();
         self.read_family();
@@ -543,7 +569,10 @@ impl<'a> Watcher<'a> {
 
     fn track_game(&mut self) {
         let running = resolve_game(&self.config, &mut self.finder);
-        if running.as_ref().map(|p| &p.root) == self.game.as_ref().map(|g| &g.root) {
+        // The start time too, or a restart within one poll keeps the old session.
+        if running.as_ref().map(|p| (&p.root, p.started_at))
+            == self.game.as_ref().map(|g| (&g.root, g.started_at))
+        {
             return;
         }
 
@@ -565,6 +594,8 @@ impl<'a> Watcher<'a> {
                     tail: LogTail::new(&process.root, process.started_at),
                     service,
                     root: process.root,
+                    started_at: process.started_at,
+                    cap_warned: false,
                 })
             }
             None => {
@@ -607,9 +638,12 @@ impl<'a> Watcher<'a> {
         }
     }
 
+    // The fallback for when the capture has not named the character.
     fn read_character(&mut self) {
+        let from_capture = self.captured_raw().character.is_some();
         let s = &mut self.session;
-        if !self.config.identity.show_character || s.state.phase_since == s.read_for {
+        if from_capture || !self.config.identity.show_character || s.state.phase_since == s.read_for
+        {
             return;
         }
         let Some(started) = play_started_at(&s.state) else {
@@ -628,7 +662,7 @@ impl<'a> Watcher<'a> {
             }
         } else if s.missed_for != s.state.phase_since && past_read_window(started) {
             s.missed_for = s.state.phase_since;
-            win::warn("Character: Not readable this Session, using the Main Character");
+            win::warn("Character: Not readable, using the Main Character until the next Load-in");
         }
     }
 
@@ -665,9 +699,8 @@ impl<'a> Watcher<'a> {
             .character
             .as_ref()
             .filter(|_| self.config.identity.show_character)
-            .and_then(|key| self.config.characters.get(key))
-            .filter(|name| !listed(name))
-            .cloned();
+            .and_then(|key| self.character_name(key))
+            .filter(|name| !listed(name));
         if unmatched == self.derived.unmatched {
             return;
         }
@@ -704,9 +737,11 @@ impl<'a> Watcher<'a> {
             }
             if s.stable.game_server != s.state.game_server {
                 if let Some(key) = &s.state.game_server {
-                    log(&match self.config.servers.get(key) {
-                        Some(name) => format!("Server: {name}, {key}"),
-                        None => format!("Server: {key}"),
+                    let name = self.config.server_name(key);
+                    log(&if name == *key {
+                        format!("Server: {key}")
+                    } else {
+                        format!("Server: {name}, {key}")
                     });
                 }
             }
@@ -721,13 +756,19 @@ impl<'a> Watcher<'a> {
         // Each block re-tests the prompt, so two unknown keys arriving
         // together are asked about one after the other.
         if self.config.prompt_unknown_server && !self.prompt.is_open() {
+            // An instance is already named by regions.toml.
             if let Some(key) = self.session.stable.game_server.clone() {
-                self.ask_name(Table::Servers, &key);
+                if region::instance(&key).is_none() {
+                    self.ask_name(Table::Servers, &key);
+                }
             }
         }
         if self.config.prompt_unknown_character && !self.prompt.is_open() {
+            // The capture knows its name in game, so there is nothing to ask.
             if let Some(key) = self.session.character.clone() {
-                self.ask_name(Table::Characters, &key);
+                if self.character_name(&key).is_none() {
+                    self.ask_name(Table::Characters, &key);
+                }
             }
         }
     }
@@ -749,6 +790,189 @@ impl<'a> Watcher<'a> {
         }
     }
 
+    /// The capture names the world server by its address, which keeps working
+    /// after the client log reaches its size cap and stops, and catches the
+    /// Magnus, which the log does not name as a server change.
+    fn follow_capture(&mut self) {
+        let domain = self
+            .session
+            .state
+            .game_host
+            .as_deref()
+            .and_then(|host| host.split_once('.'))
+            .map(|(_, domain)| domain.to_string());
+        if let (Some(domain), Ok(mut shared)) = (domain, self.shared.server_domain.lock()) {
+            *shared = Some(domain);
+        }
+        let captured = self.captured_raw();
+        let s = &mut self.session;
+
+        // On a world server not named yet, the log's may be one left long
+        // ago, so none is better than that.
+        if captured.server.is_some() || captured.resolving {
+            s.state.game_server = captured.server.clone();
+        }
+        // Whichever saw a change last wins: the log still has the finer
+        // phases before entering the world, and stops at its size cap.
+        if let Some((phase, since)) = captured.phase {
+            if s.state.phase_since.is_none_or(|logged| since >= logged) {
+                s.state.phase = Some(phase);
+                s.state.phase_since = Some(since);
+            }
+        }
+        if let Some((id, name)) = &captured.character {
+            if self.config.identity.show_character && s.character.as_ref() != Some(id) {
+                log(&format!(
+                    "Character: {}",
+                    self.config.characters.get(id).unwrap_or(name)
+                ));
+                s.character = Some(id.clone());
+                s.missed_for = None;
+            }
+        }
+        if let Some(family) = &captured.family {
+            let chosen = !self.config.identity.family_name.trim().is_empty();
+            if !chosen && self.derived.family.as_ref() != Some(family) {
+                log(&format!("Family: {family}"));
+                self.derived.family = Some(family.clone());
+            }
+        }
+        // Into Character Names, so the prompt is left for what the capture
+        // cannot name. Marked as offered, so a failed save is not retried.
+        if let Some((id, name)) = captured.character {
+            if !name.is_empty()
+                && !self.config.characters.contains_key(&id)
+                && self.prompted.insert(id.clone())
+            {
+                self.save_character_name(&id, &name);
+            }
+        }
+    }
+
+    fn save_character_name(&mut self, id: &str, name: &str) {
+        match config::add_name(&self.config_path, Table::Characters, id, name) {
+            Ok(()) => {
+                log(&format!("Character: Saved {name} as the Name of {id}"));
+                self.config
+                    .characters
+                    .insert(id.to_string(), name.to_string());
+                // Its own write is no edit to reload for.
+                self.config_mtime = config::mtime(&self.config_path);
+            }
+            Err(e) => win::warn(&format!("Character: Could not save the Name of {id} ({e})")),
+        }
+    }
+
+    /// A running capture that sees the log enter the world and no entry of
+    /// its own has stopped decoding, most likely after a patch moved the
+    /// messages it reads, so the files take over without it saying so.
+    fn check_capture(&mut self) {
+        let listening = match self.capture_state() {
+            CaptureState::Listening(since) => since,
+            _ => 0,
+        };
+        let entered = self.captured_raw().entered;
+        let s = &mut self.session;
+        let (Some(Phase::Play), Some(since)) = (s.state.phase, s.state.phase_since) else {
+            return;
+        };
+        let window = game::CHARACTER_READ_WINDOW.as_secs() as i64;
+        let missed = listening != 0
+            && since > listening
+            && Local::now().timestamp() - since >= window
+            && entered.is_none_or(|at| at < since - window);
+        if missed && s.capture_missed_for != Some(since) {
+            s.capture_missed_for = Some(since);
+            win::warn("Capture: Did not see the Character enter, falling back to the Game Files");
+        }
+    }
+
+    /// How the capture is doing, as the key the Overview row and the status
+    /// line each word their own way.
+    fn capture_kind(&self) -> &'static str {
+        let s = &self.session;
+        let missed = s.capture_missed_for.is_some() && s.capture_missed_for == s.state.phase_since;
+        let captured = self.captured_raw();
+        let waiting = captured.joined && captured.entered.is_none();
+        match self.capture_state() {
+            CaptureState::Starting => "starting",
+            CaptureState::NoNpcap => "no_npcap",
+            CaptureState::Failed(_) => "failed",
+            CaptureState::Listening(_) if missed => "missed",
+            CaptureState::Listening(_) if waiting => "waiting",
+            CaptureState::Listening(_) => "listening",
+        }
+    }
+
+    /// The Overview's Capture row, flagged whenever the files stand in.
+    fn capture_row(&self) -> (String, bool) {
+        let kind = self.capture_kind();
+        let text = match (kind, self.capture_state()) {
+            ("failed", CaptureState::Failed(error)) => {
+                t!("overview.capture_failed", error = error).into_owned()
+            }
+            _ => tr(&format!("overview.capture_{kind}")).to_string(),
+        };
+        (text, !matches!(kind, "starting" | "listening"))
+    }
+
+    /// The place as the presence shows it, territory and node.
+    fn location(&self) -> Option<String> {
+        let place = self.captured().place;
+        let parts: Vec<&str> = [place.territory.as_str(), place.node.as_str()]
+            .into_iter()
+            .filter(|part| !part.is_empty())
+            .collect();
+        (!parts.is_empty()).then(|| parts.join(" - "))
+    }
+
+    fn capture_state(&self) -> CaptureState {
+        self.shared
+            .capture
+            .lock()
+            .map(|c| c.clone())
+            .unwrap_or_default()
+    }
+
+    fn captured_raw(&self) -> Captured {
+        self.shared
+            .captured
+            .lock()
+            .map(|c| c.clone())
+            .unwrap_or_default()
+    }
+
+    /// The capture's view for the presence, with the place made safe to show.
+    fn captured(&self) -> Captured {
+        let mut captured = self.captured_raw();
+        captured.place = self.place(&captured);
+        captured
+    }
+
+    // Coordinates in an instance overlap the main map, so its nodes would lie.
+    // The raw server rather than the debounced one, or the main map's node
+    // shows for the length of the debounce after dropping in.
+    fn place(&self, captured: &Captured) -> Place {
+        let state = &self.session.state;
+        if state.phase != Some(Phase::Play) {
+            return Place::default();
+        }
+        match state.game_server.as_deref().and_then(region::instance) {
+            Some(found) => found.clone(),
+            None => captured.place.clone(),
+        }
+    }
+
+    /// A name the user gave the character, or else its name in game.
+    fn character_name(&self, key: &str) -> Option<String> {
+        self.config.characters.get(key).cloned().or_else(|| {
+            self.captured_raw()
+                .character
+                .filter(|(id, _)| id == key)
+                .map(|(_, name)| name)
+        })
+    }
+
     fn region(&self) -> Option<String> {
         resolve_region(
             &self.config,
@@ -767,6 +991,7 @@ impl<'a> Watcher<'a> {
             &region,
             s.character.as_deref(),
             d.profile.as_ref(),
+            &self.captured(),
         );
         let wanted = build(&self.config, &s.stable, &ctx);
         if wanted == d.last_sent {
@@ -807,34 +1032,24 @@ impl<'a> Watcher<'a> {
         }
     }
 
+    /// The tray's tooltip and the settings window's status bar: the phase,
+    /// then how the two sources behind it are doing.
     fn status_line(&self) -> String {
-        let stable = &self.session.stable;
-        let mut parts = vec![phase::display(stable.phase).to_string()];
-        if let Some(key) = stable.game_server.as_deref() {
-            parts.push(self.config.server_name(key));
-        }
-        if let Some(family) = &self.derived.family {
-            parts.push(family.clone());
-        }
-        let who = match &self.session.character {
-            Some(key) => Some(
-                self.config
-                    .characters
-                    .get(key)
-                    .cloned()
-                    .unwrap_or_else(|| self.config.display.unknown.clone()),
-            ),
-            None => self
-                .derived
-                .profile
-                .as_ref()
-                .and_then(Profile::main)
-                .map(|m| m.name.clone()),
+        let log = match self
+            .game
+            .as_ref()
+            .map(|g| (g.tail.file_name(), g.tail.capped))
+        {
+            Some((_, true)) => "capped",
+            Some((Some(_), false)) => "reading",
+            _ => "none",
         };
-        if let Some(who) = who {
-            parts.push(who);
-        }
-        parts.join("  ·  ")
+        [
+            phase::display(self.session.stable.phase).to_string(),
+            tr(&format!("status.capture_{}", self.capture_kind())).to_string(),
+            tr(&format!("status.log_{log}")).to_string(),
+        ]
+        .join("  ·  ")
     }
 
     fn snapshot(&self, status: &Status) -> Snapshot {
@@ -855,6 +1070,11 @@ impl<'a> Watcher<'a> {
         let game = self.game.as_ref();
         let stable = &self.session.stable;
         let profile = self.derived.profile.as_ref();
+        let captured = self.captured_raw();
+        // Where a reading came from, so a fall back shows on the page.
+        let sourced = |value: String, source: &str| {
+            t!("overview.sourced", value = value, source = tr(source)).into_owned()
+        };
         Snapshot {
             health: status.health,
             line: status.line.clone(),
@@ -887,6 +1107,7 @@ impl<'a> Watcher<'a> {
                     &self.region().unwrap_or_default(),
                     self.session.character.as_deref(),
                     profile,
+                    &self.captured(),
                 );
                 PLACEHOLDERS
                     .iter()
@@ -902,10 +1123,18 @@ impl<'a> Watcher<'a> {
                             game.map(|g| g.root.display().to_string()),
                         ),
                         row(tr("overview.region"), game.and_then(|_| self.region())),
-                        row(
+                        flagged(
                             tr("overview.log_file"),
-                            game.and_then(|g| g.tail.file_name()),
+                            game.and_then(|g| {
+                                let file = g.tail.file_name()?;
+                                Some(if g.tail.capped {
+                                    (t!("overview.log_capped", file = file).into_owned(), true)
+                                } else {
+                                    (file, false)
+                                })
+                            }),
                         ),
+                        flagged(tr("overview.capture"), Some(self.capture_row())),
                     ],
                 ),
                 group(
@@ -913,26 +1142,56 @@ impl<'a> Watcher<'a> {
                     vec![
                         row(
                             tr("overview.phase"),
-                            Some(phase::display(stable.phase).to_string()),
+                            Some(phase::display(stable.phase).to_string()).map(|text| {
+                                let from_capture = captured
+                                    .phase
+                                    .is_some_and(|(_, since)| Some(since) == stable.phase_since);
+                                match stable.phase {
+                                    Some(_) if from_capture => {
+                                        sourced(text, "overview.source_capture")
+                                    }
+                                    Some(_) => sourced(text, "overview.source_log"),
+                                    None => text,
+                                }
+                            }),
                         ),
                         row(tr("overview.phase_since"), stamp(stable.phase_since)),
                         row(tr("overview.session_start"), stamp(stable.session_start)),
                         flagged(
                             tr("overview.server"),
-                            stable.game_server.as_deref().map(|key| {
-                                match config.servers.get(key) {
+                            stable
+                                .game_server
+                                .as_deref()
+                                .map(|key| match config.servers.get(key) {
                                     Some(name) => (
                                         t!("overview.server_named", key = key, name = name)
                                             .into_owned(),
+                                        false,
+                                    ),
+                                    None if region::instance(key).is_some() => (
+                                        t!(
+                                            "overview.server_named",
+                                            key = key,
+                                            name = config.server_name(key)
+                                        )
+                                        .into_owned(),
                                         false,
                                     ),
                                     None => (
                                         t!("overview.server_unnamed", key = key).into_owned(),
                                         true,
                                     ),
-                                }
-                            }),
+                                })
+                                .map(|(text, attention)| {
+                                    let source = if captured.server == stable.game_server {
+                                        "overview.source_capture"
+                                    } else {
+                                        "overview.source_log"
+                                    };
+                                    (sourced(text, source), attention)
+                                }),
                         ),
+                        row(tr("overview.location"), self.location()),
                     ],
                 ),
                 group(
@@ -940,25 +1199,40 @@ impl<'a> Watcher<'a> {
                     vec![
                         flagged(
                             tr("overview.family"),
-                            self.derived.family.clone().map(|name| {
-                                if self.families > 1
-                                    && config.identity.family_name.trim().is_empty()
-                                {
-                                    let several = t!(
-                                        "overview.family_several",
-                                        name = name,
-                                        count = self.families
-                                    );
-                                    (several.into_owned(), true)
-                                } else {
-                                    (name, false)
-                                }
-                            }),
+                            self.derived
+                                .family
+                                .clone()
+                                .map(|name| {
+                                    if self.families > 1
+                                        && config.identity.family_name.trim().is_empty()
+                                    {
+                                        let several = t!(
+                                            "overview.family_several",
+                                            name = name,
+                                            count = self.families
+                                        );
+                                        (several.into_owned(), true)
+                                    } else {
+                                        (name, false)
+                                    }
+                                })
+                                .map(|(text, attention)| {
+                                    let source = if !config.identity.family_name.trim().is_empty() {
+                                        "overview.source_settings"
+                                    } else if captured.family == self.derived.family {
+                                        "overview.source_capture"
+                                    } else {
+                                        "overview.source_files"
+                                    };
+                                    (sourced(text, source), attention)
+                                }),
                         ),
                         flagged(
                             tr("overview.character"),
-                            self.session.character.as_deref().map(|key| {
-                                match config.characters.get(key) {
+                            self.session
+                                .character
+                                .as_deref()
+                                .map(|key| match self.character_name(key).as_ref() {
                                     Some(name) if self.derived.unmatched.as_ref() == Some(name) => {
                                         let missing = t!(
                                             "overview.character_not_on_profile",
@@ -979,8 +1253,19 @@ impl<'a> Watcher<'a> {
                                         t!("overview.character_unnamed", key = key).into_owned(),
                                         true,
                                     ),
-                                }
-                            }),
+                                })
+                                .map(|(text, attention)| {
+                                    let from_capture =
+                                        captured.character.as_ref().is_some_and(|(id, _)| {
+                                            Some(id) == self.session.character.as_ref()
+                                        });
+                                    let source = if from_capture {
+                                        "overview.source_capture"
+                                    } else {
+                                        "overview.source_files"
+                                    };
+                                    (sourced(text, source), attention)
+                                }),
                         ),
                         row(
                             tr("overview.main"),
@@ -1026,7 +1311,7 @@ impl<'a> Watcher<'a> {
     }
 }
 
-// "Yukikiri, Deadeye, Lv. 60", or without the level when the page has none.
+// "<name>, <class>, Lv. <level>", or without the level when the page has none.
 fn describe(character: &profile::Character) -> String {
     let class = t!(
         "overview.class",

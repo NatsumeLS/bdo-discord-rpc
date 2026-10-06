@@ -166,7 +166,7 @@ fn phase_defaults(phase: Phase) -> PhaseConfig {
         Phase::Loading => ("Loading", "{family}", "", "{region}", ""),
         Phase::Play => (
             "{character}",
-            "{family}",
+            "{territory} - {node}",
             "{class_image}",
             "{class} - Lv. {level}",
             "{region} - {server}",
@@ -189,7 +189,7 @@ impl Default for Config {
             enabled: true,
             language: "auto".into(),
             client_id: DEFAULT_CLIENT_ID.into(),
-            debounce_seconds: 0,
+            debounce_seconds: 3,
             poll_seconds: 1,
             prompt_unknown_server: true,
             prompt_unknown_character: true,
@@ -219,7 +219,9 @@ impl Config {
     pub fn server_name(&self, key: &str) -> String {
         match self.servers.get(key) {
             Some(name) => name.clone(),
-            None => key.to_string(),
+            // An instance is no server you could pick, so it goes by its area.
+            None => crate::region::instance(key)
+                .map_or_else(|| key.to_string(), |place| place.territory.clone()),
         }
     }
 }
@@ -242,6 +244,13 @@ impl Table {
         match self {
             Table::Servers => &mut config.servers,
             Table::Characters => &mut config.characters,
+        }
+    }
+
+    fn key(self) -> &'static str {
+        match self {
+            Table::Servers => "servers",
+            Table::Characters => "characters",
         }
     }
 
@@ -300,6 +309,21 @@ pub fn load_or_create(path: &Path) -> Result<Config, String> {
     config.profile.refresh_minutes = config.profile.refresh_minutes.clamp(15, 1440);
 
     Ok(config)
+}
+
+/// Adds one entry to the file as it is on disk, leaving the rest as written.
+pub fn add_name(path: &Path, table: Table, key: &str, name: &str) -> Result<(), String> {
+    let parsing = |e: &dyn std::fmt::Display| format!("Parsing {}: {e}", path.display());
+    let text =
+        std::fs::read_to_string(path).map_err(|e| format!("Reading {}: {e}", path.display()))?;
+    toml::from_str::<Config>(&text).map_err(|e| parsing(&e))?;
+    let mut doc: toml_edit::DocumentMut = text.parse().map_err(|e| parsing(&e))?;
+    doc.entry(table.key())
+        .or_insert(toml_edit::table())
+        .as_table_like_mut()
+        .ok_or_else(|| format!("[{}] is not a Table", table.key()))?
+        .insert(key, toml_edit::value(name));
+    std::fs::write(path, doc.to_string()).map_err(|e| format!("Writing {}: {e}", path.display()))
 }
 
 pub fn save(path: &Path, config: &Config) -> Result<(), String> {

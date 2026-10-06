@@ -3,12 +3,16 @@ use std::sync::OnceLock;
 
 use serde::Deserialize;
 
+use crate::read::capture::Place;
+
 #[derive(Deserialize)]
 pub struct Region {
     pub name: String,
     pub search: String,
     #[serde(default)]
     pub servers: Vec<String>,
+    #[serde(default)]
+    pub instances: BTreeMap<String, Place>,
 }
 
 fn all() -> &'static BTreeMap<String, Region> {
@@ -22,6 +26,12 @@ pub fn get(code: &str) -> Option<&'static Region> {
         .iter()
         .find(|(known, _)| known.eq_ignore_ascii_case(code.trim()))
         .map(|(_, region)| region)
+}
+
+/// Where a server puts you when it is a separate area rather than a channel,
+/// like the Magnus. Keys carry their region, so every region is searched.
+pub fn instance(key: &str) -> Option<&'static Place> {
+    all().values().find_map(|region| region.instances.get(key))
 }
 
 // An unknown code is shown as itself, so a new service still reads sensibly.

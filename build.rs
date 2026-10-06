@@ -5,6 +5,11 @@ fn main() {
     println!("cargo:rerun-if-changed=Cargo.toml");
     println!("cargo:rerun-if-changed=Cargo.lock");
 
+    // Without Npcap the exe still has to start, so wpcap.dll is only loaded on
+    // the first pcap call.
+    println!("cargo:rustc-link-arg-bins=/DELAYLOAD:wpcap.dll");
+    println!("cargo:rustc-link-lib=delayimp");
+
     let mut resource = winresource::WindowsResource::new();
     resource.set_icon("assets/icon.ico");
     if let Err(e) = resource.compile() {
@@ -32,8 +37,10 @@ fn libraries() -> Result<Vec<(String, String)>, String> {
             "--format-version",
             "1",
             "--offline",
-            "--manifest-path",
+            "--filter-platform",
         ])
+        .arg(std::env::var("TARGET").map_err(|e| e.to_string())?)
+        .arg("--manifest-path")
         .arg(manifest)
         .output()
         .map_err(|e| e.to_string())?;

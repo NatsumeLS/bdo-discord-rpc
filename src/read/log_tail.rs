@@ -11,6 +11,9 @@ const RESCAN_INTERVAL: Duration = Duration::from_secs(10);
 const READ_CHUNK: usize = 64 * 1024;
 const MAX_PENDING: usize = 1024 * 1024;
 const GAME_SERVER_MARKER: &str = "I will connect to 4-server type(";
+// The client's last line at its log size cap, in Korean even on an English
+// client: "the log capacity was exceeded, nothing more will be recorded".
+const CAP_MARKER: &str = "로그 용량을 초과";
 
 #[derive(Default)]
 pub struct GameState {
@@ -18,6 +21,7 @@ pub struct GameState {
     pub phase_since: Option<i64>,
     pub session_start: Option<i64>,
     pub game_server: Option<String>,
+    pub game_host: Option<String>,
 }
 
 pub struct LogTail {
@@ -28,6 +32,8 @@ pub struct LogTail {
     carry: Option<u8>,
     last_scan: Option<Instant>,
     not_before: Option<SystemTime>,
+    /// The client stopped writing this file at its size cap.
+    pub capped: bool,
 }
 
 impl LogTail {
@@ -40,6 +46,7 @@ impl LogTail {
             carry: None,
             last_scan: None,
             not_before,
+            capped: false,
         }
     }
 
@@ -89,6 +96,7 @@ impl LogTail {
         self.offset = 0;
         self.pending.clear();
         self.carry = None;
+        self.capped = false;
     }
 
     pub fn poll(&mut self, state: &mut GameState) {
@@ -140,6 +148,8 @@ impl LogTail {
                 apply_record(&line, state);
             }
 
+            // The cap line is the file's last and ends without a newline.
+            self.capped |= self.pending.contains(CAP_MARKER);
             if self.pending.len() > MAX_PENDING {
                 self.pending.clear();
             }
@@ -212,6 +222,7 @@ fn apply_record(record: &str, state: &mut GameState) {
         let host = &rest[..rest.find([':', ')']).unwrap_or(rest.len())];
         if !host.is_empty() {
             state.game_server = Some(server_key(host));
+            state.game_host = Some(host.to_string());
         }
     }
 }

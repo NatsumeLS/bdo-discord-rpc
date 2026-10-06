@@ -1,8 +1,12 @@
+use std::net::{Ipv4Addr, SocketAddrV4};
 use std::path::{Path, PathBuf};
 use std::time::{Duration, SystemTime};
 
 use windows_sys::Win32::Foundation::{
     CloseHandle, FILETIME, HANDLE, INVALID_HANDLE_VALUE, MAX_PATH,
+};
+use windows_sys::Win32::NetworkManagement::IpHelper::{
+    GetExtendedTcpTable, MIB_TCPROW_OWNER_PID, TCP_TABLE_OWNER_PID_ALL,
 };
 use windows_sys::Win32::System::Diagnostics::ToolHelp::{
     CreateToolhelp32Snapshot, Process32FirstW, Process32NextW, PROCESSENTRY32W, TH32CS_SNAPPROCESS,
@@ -12,12 +16,13 @@ use windows_sys::Win32::System::Threading::{
     PROCESS_QUERY_LIMITED_INFORMATION,
 };
 
-const GAME_EXE: &str = "BlackDesert64.exe";
+pub const GAME_EXE: &str = "BlackDesert64.exe";
 
 const STILL_ACTIVE: u32 = 259;
 
 #[derive(Clone)]
 pub struct GameProcess {
+    pub pid: Option<u32>,
     pub root: PathBuf,
     pub started_at: Option<SystemTime>,
 }
@@ -38,6 +43,7 @@ impl GameFinder {
 
         let (pid, exe, started_at) = first_process(GAME_EXE)?;
         let game = GameProcess {
+            pid: Some(pid),
             root: game_root(&exe)?,
             started_at,
         };
@@ -145,6 +151,57 @@ unsafe fn creation_time(handle: HANDLE) -> Option<SystemTime> {
 fn wide_to_string(buf: &[u16]) -> String {
     let len = buf.iter().position(|&c| c == 0).unwrap_or(buf.len());
     String::from_utf16_lossy(&buf[..len])
+}
+
+/// Every IPv4 TCP connection the process owns, as (local, remote, state).
+pub fn connections(pid: u32) -> Vec<(SocketAddrV4, SocketAddrV4, u32)> {
+    const AF_INET: u32 = 2;
+    let mut size = 0u32;
+    unsafe {
+        GetExtendedTcpTable(
+            std::ptr::null_mut(),
+            &mut size,
+            0,
+            AF_INET,
+            TCP_TABLE_OWNER_PID_ALL,
+            0,
+        );
+        // Slack for connections opened between the two calls.
+        size += 64 * std::mem::size_of::<MIB_TCPROW_OWNER_PID>() as u32;
+        let mut buf = vec![0u32; size as usize / 4];
+        if GetExtendedTcpTable(
+            buf.as_mut_ptr().cast(),
+            &mut size,
+            0,
+            AF_INET,
+            TCP_TABLE_OWNER_PID_ALL,
+            0,
+        ) != 0
+        {
+            return Vec::new();
+        }
+        let rows = std::slice::from_raw_parts(
+            buf.as_ptr().add(1).cast::<MIB_TCPROW_OWNER_PID>(),
+            buf[0] as usize,
+        );
+        rows.iter()
+            .filter(|r| r.dwOwningPid == pid)
+            .map(|r| {
+                (
+                    endpoint(r.dwLocalAddr, r.dwLocalPort),
+                    endpoint(r.dwRemoteAddr, r.dwRemotePort),
+                    r.dwState,
+                )
+            })
+            .collect()
+    }
+}
+
+fn endpoint(addr: u32, port: u32) -> SocketAddrV4 {
+    SocketAddrV4::new(
+        Ipv4Addr::from(addr.to_ne_bytes()),
+        u16::from_be(port as u16),
+    )
 }
 
 pub fn detect_service(root: &Path) -> Option<String> {

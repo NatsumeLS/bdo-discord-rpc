@@ -6,17 +6,25 @@ on:
   pull_request:
   workflow_dispatch:
 
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
 jobs:
   build:
     runs-on: windows-latest
     permissions:
-      contents: write
+      contents: read
+    outputs:
+      artifact: ${{ steps.stage.outputs.artifact }}
+      name: ${{ steps.stage.outputs.name }}
+      tag: ${{ steps.stage.outputs.tag }}
     steps:
       - uses: actions/checkout@v4
-        with:
-          fetch-depth: 0
 
       - uses: dtolnay/rust-toolchain@stable
+        with:
+          components: clippy, rustfmt
 
       - uses: Swatinem/rust-cache@v2
 
@@ -31,6 +39,10 @@ jobs:
           "LIBPCAP_LIBDIR=$env:RUNNER_TEMP/npcap-sdk/Lib/x64" >> $env:GITHUB_ENV
           "LIBPCAP_VER=1.10.6" >> $env:GITHUB_ENV
 
+      - run: cargo fmt --check
+
+      - run: cargo clippy --release --all-targets --locked -- -D warnings
+
       - run: cargo build --release --locked
 
       - name: Stage
@@ -41,25 +53,52 @@ jobs:
           $artifact = "$($pkg.name)-$($pkg.version)-windows-x64"
           New-Item -ItemType Directory -Force "dist/$($pkg.name)"
           Copy-Item "target/release/$($pkg.name).exe" "dist/$($pkg.name)/"
-          Compress-Archive "dist/$($pkg.name)" "$artifact.zip"
           "artifact=$artifact" >> $env:GITHUB_OUTPUT
+          "name=$($pkg.name)" >> $env:GITHUB_OUTPUT
           "tag=v$($pkg.version)" >> $env:GITHUB_OUTPUT
+
+      # Without Npcap the exe must still start, so wpcap.dll has to be delay loaded.
+      - name: Delay Load
+        shell: pwsh
+        run: |
+          $dumpbin = & "${env:ProgramFiles(x86)}\Microsoft Visual Studio\Installer\vswhere.exe" -latest -products * -find "VC\Tools\MSVC\*\bin\Hostx64\x64\dumpbin.exe" | Select-Object -First 1
+          $imports = (& $dumpbin /nologo /imports "dist/${{ steps.stage.outputs.name }}/${{ steps.stage.outputs.name }}.exe") -join "`n"
+          $at = $imports.IndexOf("delay load imports")
+          if ($at -lt 0 -or $imports.Substring(0, $at) -match "wpcap\.dll" -or $imports.Substring($at) -notmatch "wpcap\.dll") {
+            throw "wpcap.dll is not a delay load import only"
+          }
 
       - uses: actions/upload-artifact@v4
         with:
           name: ${{ steps.stage.outputs.artifact }}
           path: dist
 
+  release:
+    needs: build
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    runs-on: windows-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - uses: actions/download-artifact@v4
+        with:
+          name: ${{ needs.build.outputs.artifact }}
+          path: dist
+
       - name: Release
-        if: github.event_name == 'push' && github.ref == 'refs/heads/main'
         shell: pwsh
         env:
           GH_TOKEN: ${{ github.token }}
-          TAG: ${{ steps.stage.outputs.tag }}
-          ZIP: ${{ steps.stage.outputs.artifact }}.zip
+          TAG: ${{ needs.build.outputs.tag }}
+          ZIP: ${{ needs.build.outputs.artifact }}.zip
         run: |
           git rev-parse -q --verify "refs/tags/$env:TAG" | Out-Null
           if ($LASTEXITCODE -eq 0) { "$env:TAG is already released"; exit 0 }
+          Compress-Archive "dist/${{ needs.build.outputs.name }}" $env:ZIP
           $prev = git tag --list 'v*' --merged HEAD --sort=-v:refname | Select-Object -First 1
           $range = if ($prev) { "$prev..HEAD" } else { "HEAD" }
           $repo = "$env:GITHUB_SERVER_URL/$env:GITHUB_REPOSITORY"

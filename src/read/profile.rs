@@ -88,11 +88,13 @@ impl Profile {
 }
 
 fn agent() -> ureq::Agent {
-    ureq::AgentBuilder::new()
-        .timeout_connect(TIMEOUT)
-        .timeout_read(TIMEOUT)
+    ureq::Agent::config_builder()
+        .timeout_connect(Some(TIMEOUT))
+        .timeout_recv_response(Some(TIMEOUT))
+        .timeout_recv_body(Some(TIMEOUT))
         .user_agent(USER_AGENT)
         .build()
+        .into()
 }
 
 fn get(url: &str, what: &str) -> Result<String, String> {
@@ -100,7 +102,8 @@ fn get(url: &str, what: &str) -> Result<String, String> {
         .get(url)
         .call()
         .map_err(|e| format!("{what}: {e}"))?
-        .into_string()
+        .body_mut()
+        .read_to_string()
         .map_err(|e| format!("{what}, reading the Response: {e}"))
 }
 

@@ -8,14 +8,14 @@ authors = ["NatsumeLS"]
 
 [dependencies]
 chrono = { version = "0.4", default-features = false, features = ["clock", "std"] }
-dirs = "5"
+dirs = "7"
 serde = { version = "1", features = ["derive"] }
-toml = "0.8"
+toml = "1"
 discord-rich-presence = "1.1"
-scraper = "0.21"
+scraper = "0.27"
 serde_json = "1"
-ureq = "2"
-tray-icon = "0.25"
+ureq = "3"
+tray-icon = "0.26"
 iced = { version = "0.14", default-features = false, features = [
     "wgpu",
     "tiny-skia",
@@ -23,13 +23,13 @@ iced = { version = "0.14", default-features = false, features = [
     "image-without-codecs",
 ] }
 material-color-rs = "0.1"
-png = "0.17"
+png = "0.18"
 rust-i18n = "4"
 pcap = "2.5"
-toml_edit = "0.22"
+toml_edit = "0.25"
 
 [dependencies.windows-sys]
-version = "0.59"
+version = "0.61"
 features = [
     "Win32_Foundation",
     "Win32_Globalization",

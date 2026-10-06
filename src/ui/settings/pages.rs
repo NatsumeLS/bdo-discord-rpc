@@ -23,8 +23,10 @@ fn avatar() -> iced::widget::image::Handle {
     DECODED
         .get_or_init(|| {
             let png = include_bytes!("../../../assets/NatsumeLS.png");
-            let mut reader = png::Decoder::new(&png[..]).read_info().expect("avatar png");
-            let mut pixels = vec![0; reader.output_buffer_size()];
+            let mut reader = png::Decoder::new(std::io::Cursor::new(png))
+                .read_info()
+                .expect("avatar png");
+            let mut pixels = vec![0; reader.output_buffer_size().expect("avatar size")];
             let info = reader.next_frame(&mut pixels).expect("avatar pixels");
             pixels.truncate(info.buffer_size());
             // Masked here because iced clips an image to its bounds, not to a radius.

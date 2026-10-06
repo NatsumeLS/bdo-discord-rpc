@@ -126,7 +126,7 @@ pub struct Group {
 pub struct Row {
     pub label: String,
     pub value: String,
-    #[serde(default)]
+    #[serde(default, skip_serializing_if = "std::ops::Not::not")]
     pub attention: bool,
 }
 
@@ -307,6 +307,17 @@ struct Derived {
     profile_url: Option<String>,
     unmatched: Option<String>,
     last_sent: Option<PresenceFields>,
+    user_cache: UserCache,
+}
+
+// What the UserCache folders say, rescanned when the game comes or goes or
+// the phase changes, the moments the client writes them.
+#[derive(Default)]
+struct UserCache {
+    scanned_for: Option<(bool, Option<Phase>)>,
+    families: usize,
+    newest_family: Option<String>,
+    character_ids: Vec<String>,
 }
 
 impl Derived {
@@ -486,6 +497,7 @@ impl<'a> Watcher<'a> {
 
     fn tick(&mut self) -> Status {
         self.reload();
+        self.scan_user_cache();
 
         if !self.loaded {
             return Status::new(Health::Waiting, tr("status.config_error"));
@@ -608,9 +620,23 @@ impl<'a> Watcher<'a> {
         self.session = Session::default();
     }
 
+    fn scan_user_cache(&mut self) {
+        let key = (self.game.is_some(), self.session.stable.phase);
+        let cache = &mut self.derived.user_cache;
+        if cache.scanned_for == Some(key) {
+            return;
+        }
+        let dir = resolve_user_data_dir(&self.config);
+        *cache = UserCache {
+            scanned_for: Some(key),
+            families: dir.as_deref().map_or(0, game::family_count),
+            newest_family: dir.as_deref().and_then(game::detect_family),
+            character_ids: dir.as_deref().map(game::character_ids).unwrap_or_default(),
+        };
+    }
+
     fn count_families(&mut self) {
-        let families =
-            resolve_user_data_dir(&self.config).map_or(0, |dir| game::family_count(&dir));
+        let families = self.derived.user_cache.families;
         if families > 1 && self.families <= 1 && !self.family_chosen() {
             win::warn(&format!(
                 "Family: {families} Accounts in UserCache, using the most recent (set the Family Name to choose one)"
@@ -629,7 +655,7 @@ impl<'a> Watcher<'a> {
         }
         let first_check = self.derived.last_family_check.is_none();
         self.derived.last_family_check = Some(Instant::now());
-        self.derived.family = resolve_family(&self.config);
+        self.derived.family = self.derived.user_cache.newest_family.clone();
         match &self.derived.family {
             Some(name) => log(&format!("Family: {name}")),
             None if first_check => win::warn("Family: Not found in UserCache, retrying"),
@@ -1107,7 +1133,7 @@ impl<'a> Watcher<'a> {
         if self.published.as_ref() == Some(&snapshot) {
             return;
         }
-        if let Ok(text) = serde_json::to_string_pretty(&snapshot) {
+        if let Ok(text) = serde_json::to_string(&snapshot) {
             let _ = std::fs::write(&self.status_path, text);
             self.published = Some(snapshot);
         }
@@ -1147,7 +1173,6 @@ impl<'a> Watcher<'a> {
             title: title.to_string(),
             rows: rows.into_iter().flatten().collect(),
         };
-        let config = &self.config;
         let game = self.game.as_ref();
         let stable = &self.session.stable;
         let profile = self.derived.profile.as_ref();
@@ -1157,13 +1182,11 @@ impl<'a> Watcher<'a> {
             line: status.line.clone(),
             service: self.service().map(str::to_string),
             server_key: stable.game_server.clone(),
-            character_ids: resolve_user_data_dir(config)
-                .map(|dir| game::character_ids(&dir))
-                .unwrap_or_default(),
+            character_ids: self.derived.user_cache.character_ids.clone(),
             detected: {
                 let service = self.service();
                 Detected {
-                    family: resolve_user_data_dir(config).and_then(|dir| game::detect_family(&dir)),
+                    family: self.derived.user_cache.newest_family.clone(),
                     region: service.map(region::name),
                     game_root: game.map(|g| g.root.display().to_string()),
                     user_data_dir: game::default_user_data_dir()
@@ -1180,7 +1203,9 @@ impl<'a> Watcher<'a> {
                 let ctx = self.presence_context();
                 PLACEHOLDERS
                     .iter()
-                    .map(|p| (p.name.to_string(), (p.value)(&ctx).to_string()))
+                    .map(|p| (p.name, (p.value)(&ctx)))
+                    .filter(|(_, value)| !value.is_empty())
+                    .map(|(name, value)| (name.to_string(), value.to_string()))
                     .collect()
             },
             groups: vec![

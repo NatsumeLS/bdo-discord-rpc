@@ -15,7 +15,7 @@ use crate::read::log_tail::{GameState, LogTail};
 use crate::read::profile::{self, Profile, LIFE_SKILLS};
 use crate::region;
 use crate::show::discord::Presence;
-use crate::show::presence::{build, context, PresenceFields, PLACEHOLDERS};
+use crate::show::presence::{build, context, Context, PresenceFields, PLACEHOLDERS};
 use crate::ui::lang::tr;
 use crate::ui::tray::Health;
 use crate::win::{self, log};
@@ -611,8 +611,7 @@ impl<'a> Watcher<'a> {
     fn count_families(&mut self) {
         let families =
             resolve_user_data_dir(&self.config).map_or(0, |dir| game::family_count(&dir));
-        if families > 1 && self.families <= 1 && self.config.identity.family_name.trim().is_empty()
-        {
+        if families > 1 && self.families <= 1 && !self.family_chosen() {
             win::warn(&format!(
                 "Family: {families} Accounts in UserCache, using the most recent (set the Family Name to choose one)"
             ));
@@ -828,8 +827,7 @@ impl<'a> Watcher<'a> {
             }
         }
         if let Some(family) = &captured.family {
-            let chosen = !self.config.identity.family_name.trim().is_empty();
-            if !chosen && self.derived.family.as_ref() != Some(family) {
+            if !self.family_chosen() && self.derived.family.as_ref() != Some(family) {
                 log(&format!("Family: {family}"));
                 self.derived.family = Some(family.clone());
             }
@@ -913,6 +911,99 @@ impl<'a> Watcher<'a> {
         (text, !matches!(kind, "starting" | "listening"))
     }
 
+    fn log_row(&self) -> Option<(String, bool)> {
+        let tail = &self.game.as_ref()?.tail;
+        let file = tail.file_name()?;
+        Some(if tail.capped {
+            (t!("overview.log_capped", file = file).into_owned(), true)
+        } else {
+            (file, false)
+        })
+    }
+
+    fn phase_row(&self, captured: &Captured) -> String {
+        let stable = &self.session.stable;
+        let text = phase::display(stable.phase).to_string();
+        if stable.phase.is_none() {
+            return text;
+        }
+        let from_capture = captured
+            .phase
+            .is_some_and(|(_, since)| Some(since) == stable.phase_since);
+        sourced(
+            text,
+            if from_capture {
+                "overview.source_capture"
+            } else {
+                "overview.source_log"
+            },
+        )
+    }
+
+    fn server_row(&self, captured: &Captured) -> Option<(String, bool)> {
+        let stable = &self.session.stable;
+        let key = stable.game_server.as_deref()?;
+        let (text, attention) = match self.config.servers.get(key) {
+            Some(name) => (t!("overview.server_named", key = key, name = name), false),
+            None => (t!("overview.server_unnamed", key = key), true),
+        };
+        let source = if captured.server == stable.game_server {
+            "overview.source_capture"
+        } else {
+            "overview.source_log"
+        };
+        Some((sourced(text.into_owned(), source), attention))
+    }
+
+    fn family_row(&self, captured: &Captured) -> Option<(String, bool)> {
+        let name = self.derived.family.clone()?;
+        let (text, attention) = if self.families > 1 && !self.family_chosen() {
+            let several = t!(
+                "overview.family_several",
+                name = name,
+                count = self.families
+            );
+            (several.into_owned(), true)
+        } else {
+            (name, false)
+        };
+        let source = if self.family_chosen() {
+            "overview.source_settings"
+        } else if captured.family == self.derived.family {
+            "overview.source_capture"
+        } else {
+            "overview.source_files"
+        };
+        Some((sourced(text, source), attention))
+    }
+
+    fn character_row(&self, captured: &Captured) -> Option<(String, bool)> {
+        let key = self.session.character.as_deref()?;
+        let (text, attention) = match self.character_name(key) {
+            Some(name) if self.derived.unmatched.as_ref() == Some(&name) => (
+                t!("overview.character_not_on_profile", key = key, name = name),
+                true,
+            ),
+            Some(name) => {
+                let who = self
+                    .derived
+                    .profile
+                    .as_ref()
+                    .and_then(|p| p.character(&name))
+                    .map_or(name, describe);
+                (t!("overview.character_named", key = key, name = who), false)
+            }
+            None => (t!("overview.character_unnamed", key = key), true),
+        };
+        let from_capture = captured.character.as_ref().is_some_and(|(id, _)| id == key);
+        let source = if from_capture {
+            "overview.source_capture"
+        } else {
+            "overview.source_files"
+        };
+        Some((sourced(text.into_owned(), source), attention))
+    }
+
     /// The place as the presence shows it, territory and node.
     fn location(&self) -> Option<String> {
         let place = self.captured().place;
@@ -942,15 +1033,10 @@ impl<'a> Watcher<'a> {
     /// The capture's view for the presence, with the place made safe to show.
     fn captured(&self) -> Captured {
         let mut captured = self.captured_raw();
-        captured.place = self.place(&captured);
-        captured
-    }
-
-    fn place(&self, captured: &Captured) -> Place {
         if self.session.state.phase != Some(Phase::Play) {
-            return Place::default();
+            captured.place = Place::default();
         }
-        captured.place.clone()
+        captured
     }
 
     /// A name the user gave the character, or else its name in game.
@@ -963,28 +1049,33 @@ impl<'a> Watcher<'a> {
         })
     }
 
+    fn service(&self) -> Option<&str> {
+        self.game.as_ref().and_then(|g| g.service.as_deref())
+    }
+
+    fn family_chosen(&self) -> bool {
+        !self.config.identity.family_name.trim().is_empty()
+    }
+
     fn region(&self) -> Option<String> {
-        resolve_region(
+        resolve_region(&self.config, self.service())
+    }
+
+    fn presence_context(&self) -> Context {
+        context(
             &self.config,
-            self.game.as_ref().and_then(|g| g.service.as_deref()),
+            &self.session.stable,
+            self.derived.family.as_deref(),
+            &self.region().unwrap_or_default(),
+            self.session.character.as_deref(),
+            self.derived.profile.as_ref(),
+            &self.captured(),
         )
     }
 
     fn push(&mut self) {
-        let s = &self.session;
-        let d = &self.derived;
-        let region = self.region().unwrap_or_default();
-        let ctx = context(
-            &self.config,
-            &s.stable,
-            d.family.as_deref(),
-            &region,
-            s.character.as_deref(),
-            d.profile.as_ref(),
-            &self.captured(),
-        );
-        let wanted = build(&self.config, &s.stable, &ctx);
-        if wanted == d.last_sent {
+        let wanted = build(&self.config, &self.session.stable, &self.presence_context());
+        if wanted == self.derived.last_sent {
             return;
         }
         let Some(presence) = self.link.client.as_mut() else {
@@ -1061,20 +1152,16 @@ impl<'a> Watcher<'a> {
         let stable = &self.session.stable;
         let profile = self.derived.profile.as_ref();
         let captured = self.captured_raw();
-        // Where a reading came from, so a fall back shows on the page.
-        let sourced = |value: String, source: &str| {
-            t!("overview.sourced", value = value, source = tr(source)).into_owned()
-        };
         Snapshot {
             health: status.health,
             line: status.line.clone(),
-            service: game.and_then(|g| g.service.clone()),
+            service: self.service().map(str::to_string),
             server_key: stable.game_server.clone(),
             character_ids: resolve_user_data_dir(config)
                 .map(|dir| game::character_ids(&dir))
                 .unwrap_or_default(),
             detected: {
-                let service = game.and_then(|g| g.service.as_deref());
+                let service = self.service();
                 Detected {
                     family: resolve_user_data_dir(config).and_then(|dir| game::detect_family(&dir)),
                     region: service.map(region::name),
@@ -1090,15 +1177,7 @@ impl<'a> Watcher<'a> {
                 }
             },
             placeholders: {
-                let ctx = context(
-                    config,
-                    stable,
-                    self.derived.family.as_deref(),
-                    &self.region().unwrap_or_default(),
-                    self.session.character.as_deref(),
-                    profile,
-                    &self.captured(),
-                );
+                let ctx = self.presence_context();
                 PLACEHOLDERS
                     .iter()
                     .map(|p| (p.name.to_string(), (p.value)(&ctx).to_string()))
@@ -1113,141 +1192,25 @@ impl<'a> Watcher<'a> {
                             game.map(|g| g.root.display().to_string()),
                         ),
                         row(tr("overview.region"), game.and_then(|_| self.region())),
-                        flagged(
-                            tr("overview.log_file"),
-                            game.and_then(|g| {
-                                let file = g.tail.file_name()?;
-                                Some(if g.tail.capped {
-                                    (t!("overview.log_capped", file = file).into_owned(), true)
-                                } else {
-                                    (file, false)
-                                })
-                            }),
-                        ),
+                        flagged(tr("overview.log_file"), self.log_row()),
                         flagged(tr("overview.capture"), Some(self.capture_row())),
                     ],
                 ),
                 group(
                     tr("overview.session"),
                     vec![
-                        row(
-                            tr("overview.phase"),
-                            Some(phase::display(stable.phase).to_string()).map(|text| {
-                                let from_capture = captured
-                                    .phase
-                                    .is_some_and(|(_, since)| Some(since) == stable.phase_since);
-                                match stable.phase {
-                                    Some(_) if from_capture => {
-                                        sourced(text, "overview.source_capture")
-                                    }
-                                    Some(_) => sourced(text, "overview.source_log"),
-                                    None => text,
-                                }
-                            }),
-                        ),
+                        row(tr("overview.phase"), Some(self.phase_row(&captured))),
                         row(tr("overview.phase_since"), stamp(stable.phase_since)),
                         row(tr("overview.session_start"), stamp(stable.session_start)),
-                        flagged(
-                            tr("overview.server"),
-                            stable
-                                .game_server
-                                .as_deref()
-                                .map(|key| match config.servers.get(key) {
-                                    Some(name) => (
-                                        t!("overview.server_named", key = key, name = name)
-                                            .into_owned(),
-                                        false,
-                                    ),
-                                    None => (
-                                        t!("overview.server_unnamed", key = key).into_owned(),
-                                        true,
-                                    ),
-                                })
-                                .map(|(text, attention)| {
-                                    let source = if captured.server == stable.game_server {
-                                        "overview.source_capture"
-                                    } else {
-                                        "overview.source_log"
-                                    };
-                                    (sourced(text, source), attention)
-                                }),
-                        ),
+                        flagged(tr("overview.server"), self.server_row(&captured)),
                         row(tr("overview.location"), self.location()),
                     ],
                 ),
                 group(
                     tr("overview.you"),
                     vec![
-                        flagged(
-                            tr("overview.family"),
-                            self.derived
-                                .family
-                                .clone()
-                                .map(|name| {
-                                    if self.families > 1
-                                        && config.identity.family_name.trim().is_empty()
-                                    {
-                                        let several = t!(
-                                            "overview.family_several",
-                                            name = name,
-                                            count = self.families
-                                        );
-                                        (several.into_owned(), true)
-                                    } else {
-                                        (name, false)
-                                    }
-                                })
-                                .map(|(text, attention)| {
-                                    let source = if !config.identity.family_name.trim().is_empty() {
-                                        "overview.source_settings"
-                                    } else if captured.family == self.derived.family {
-                                        "overview.source_capture"
-                                    } else {
-                                        "overview.source_files"
-                                    };
-                                    (sourced(text, source), attention)
-                                }),
-                        ),
-                        flagged(
-                            tr("overview.character"),
-                            self.session
-                                .character
-                                .as_deref()
-                                .map(|key| match self.character_name(key).as_ref() {
-                                    Some(name) if self.derived.unmatched.as_ref() == Some(name) => {
-                                        let missing = t!(
-                                            "overview.character_not_on_profile",
-                                            key = key,
-                                            name = name
-                                        );
-                                        (missing.into_owned(), true)
-                                    }
-                                    Some(name) => {
-                                        let who = profile
-                                            .and_then(|p| p.character(name))
-                                            .map_or_else(|| name.clone(), describe);
-                                        let named =
-                                            t!("overview.character_named", key = key, name = who);
-                                        (named.into_owned(), false)
-                                    }
-                                    None => (
-                                        t!("overview.character_unnamed", key = key).into_owned(),
-                                        true,
-                                    ),
-                                })
-                                .map(|(text, attention)| {
-                                    let from_capture =
-                                        captured.character.as_ref().is_some_and(|(id, _)| {
-                                            Some(id) == self.session.character.as_ref()
-                                        });
-                                    let source = if from_capture {
-                                        "overview.source_capture"
-                                    } else {
-                                        "overview.source_files"
-                                    };
-                                    (sourced(text, source), attention)
-                                }),
-                        ),
+                        flagged(tr("overview.family"), self.family_row(&captured)),
+                        flagged(tr("overview.character"), self.character_row(&captured)),
                         row(
                             tr("overview.main"),
                             profile.and_then(Profile::main).map(describe),
@@ -1290,6 +1253,11 @@ impl<'a> Watcher<'a> {
             ],
         }
     }
+}
+
+// Where a reading came from, so a fall back shows on the page.
+fn sourced(value: String, source: &str) -> String {
+    t!("overview.sourced", value = value, source = tr(source)).into_owned()
 }
 
 // "<name>, <class>, Lv. <level>", or without the level when the page has none.

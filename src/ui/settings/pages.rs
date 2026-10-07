@@ -7,7 +7,7 @@ use iced::widget::{
 use iced::{border, gradient, Background, Color, Element, Length, Padding, Radians};
 
 use super::controls::{
-    dial, divider, dot, field, field_with, flow, icon_button, marked, note, switch, switch_with,
+    dial, divider, dot, field, field_with, icon_button, marked, note, switch, switch_with, Flow,
 };
 use super::{check, Message, PhaseField, SettingsWindow, KEY_WIDTH};
 use crate::config::{self, Table};
@@ -163,7 +163,7 @@ pub(super) fn placeholders(state: &SettingsWindow) -> Element<'_, Message> {
     page.into()
 }
 
-pub(super) fn overview(state: &SettingsWindow) -> Element<'_, Message> {
+pub(super) fn overview(state: &SettingsWindow, fit: f32) -> Element<'_, Message> {
     let Some(snapshot) = state.tray.snapshot.as_ref() else {
         return note(state, tr("overview.tray_not_running"));
     };
@@ -179,22 +179,18 @@ pub(super) fn overview(state: &SettingsWindow) -> Element<'_, Message> {
                 row.attention,
             ));
         }
-        let height = GROUP_HEADING + PAIR_ROW * group.rows.len() as f32;
-        groups.push((height, rows.into()));
+        groups.push(rows.into());
     }
-    let groups = flow(state, groups, 20.0);
+    let groups = Flow::new(fit, groups).spacing(20.0);
     match snapshot.detected.profile_url.clone() {
-        Some(url) => column![
-            icon_button(
+        Some(url) => groups
+            .head(icon_button(
                 state,
                 tr("overview.open_profile"),
-                Some(Message::OpenUrl(url))
-            ),
-            groups,
-        ]
-        .spacing(20)
-        .into(),
-        None => groups,
+                Some(Message::OpenUrl(url)),
+            ))
+            .into(),
+        None => groups.into(),
     }
 }
 
@@ -423,10 +419,6 @@ fn language(state: &SettingsWindow) -> Element<'_, Message> {
     )
 }
 
-// Estimated heights for `flow`: a switch, and a labeled field, slider or chip row.
-const LINE: f32 = 24.0;
-const BLOCK: f32 = 72.0;
-
 // A blank field shows the value it would use, or its hint when nothing was found.
 fn detected(
     state: &SettingsWindow,
@@ -440,213 +432,151 @@ fn detected(
         .and_then(|s| value(&s.detected).clone())
         .unwrap_or_else(|| tr(hint))
 }
-// One label and value row on Overview and the heading above a group of them.
-const PAIR_ROW: f32 = 24.0;
-const GROUP_HEADING: f32 = 28.0;
-// The two notes, the phase chips and the divider above the Phases fields.
-const PHASES_TOP: f32 = 200.0;
 
-pub(super) fn general(state: &SettingsWindow) -> Element<'_, Message> {
-    flow(
-        state,
+pub(super) fn general(state: &SettingsWindow, fit: f32) -> Element<'_, Message> {
+    Flow::new(
+        fit,
         vec![
-            (LINE, switch(state, tr("general.enabled"), lens!(enabled))),
-            (BLOCK, language(state)),
-            (
-                BLOCK,
-                field(
-                    state,
-                    tr("general.app_id"),
-                    lens!(client_id),
-                    &tr("general.app_id_hint"),
-                    check::app_id,
-                ),
+            switch(state, tr("general.enabled"), lens!(enabled)),
+            language(state),
+            field(
+                state,
+                tr("general.app_id"),
+                lens!(client_id),
+                &tr("general.app_id_hint"),
+                check::app_id,
             ),
-            (
-                BLOCK,
-                dial(
-                    state,
-                    tr("general.debounce"),
-                    lens!(debounce_seconds),
-                    0..=60,
-                ),
+            dial(
+                state,
+                tr("general.debounce"),
+                lens!(debounce_seconds),
+                0..=60,
             ),
-            (
-                BLOCK,
-                dial(state, tr("general.poll"), lens!(poll_seconds), 1..=60),
+            dial(state, tr("general.poll"), lens!(poll_seconds), 1..=60),
+            switch(
+                state,
+                tr("general.ask_server"),
+                lens!(prompt_unknown_server),
             ),
-            (
-                LINE,
-                switch(
-                    state,
-                    tr("general.ask_server"),
-                    lens!(prompt_unknown_server),
-                ),
-            ),
-            (
-                LINE,
-                switch(
-                    state,
-                    tr("general.ask_character"),
-                    lens!(prompt_unknown_character),
-                ),
+            switch(
+                state,
+                tr("general.ask_character"),
+                lens!(prompt_unknown_character),
             ),
         ],
-        18.0,
     )
+    .into()
 }
 
-pub(super) fn identity(state: &SettingsWindow) -> Element<'_, Message> {
-    flow(
-        state,
+pub(super) fn identity(state: &SettingsWindow, fit: f32) -> Element<'_, Message> {
+    Flow::new(
+        fit,
         vec![
-            (
-                LINE,
-                switch(
-                    state,
-                    tr("identity.show_family"),
-                    lens!(identity.show_family),
-                ),
+            switch(
+                state,
+                tr("identity.show_family"),
+                lens!(identity.show_family),
             ),
-            (
-                LINE,
-                switch(
-                    state,
-                    tr("identity.show_character"),
-                    lens!(identity.show_character),
-                ),
+            switch(
+                state,
+                tr("identity.show_character"),
+                lens!(identity.show_character),
             ),
-            (
-                BLOCK,
-                field(
-                    state,
-                    tr("identity.family"),
-                    lens!(identity.family_name),
-                    &detected(state, |d| &d.family, "identity.family_hint"),
-                    |_| None,
-                ),
+            field(
+                state,
+                tr("identity.family"),
+                lens!(identity.family_name),
+                &detected(state, |d| &d.family, "identity.family_hint"),
+                |_| None,
             ),
-            (
-                BLOCK,
-                field(
-                    state,
-                    tr("identity.region"),
-                    lens!(identity.region_name),
-                    &detected(state, |d| &d.region, "identity.region_hint"),
-                    |_| None,
-                ),
+            field(
+                state,
+                tr("identity.region"),
+                lens!(identity.region_name),
+                &detected(state, |d| &d.region, "identity.region_hint"),
+                |_| None,
             ),
         ],
-        18.0,
     )
+    .into()
 }
 
-pub(super) fn display(state: &SettingsWindow) -> Element<'_, Message> {
-    flow(
-        state,
+pub(super) fn display(state: &SettingsWindow, fit: f32) -> Element<'_, Message> {
+    Flow::new(
+        fit,
         vec![
-            (
-                LINE,
-                switch(state, tr("display.show_server"), lens!(display.show_server)),
+            switch(state, tr("display.show_server"), lens!(display.show_server)),
+            switch(state, tr("display.show_region"), lens!(display.show_region)),
+            field(
+                state,
+                tr("display.game_icon"),
+                lens!(display.game_icon),
+                &tr("display.game_icon_hint"),
+                check::image,
             ),
-            (
-                LINE,
-                switch(state, tr("display.show_region"), lens!(display.show_region)),
-            ),
-            (
-                BLOCK,
-                field(
-                    state,
-                    tr("display.game_icon"),
-                    lens!(display.game_icon),
-                    &tr("display.game_icon_hint"),
-                    check::image,
-                ),
-            ),
-            (
-                BLOCK,
-                field(
-                    state,
-                    tr("display.unknown"),
-                    lens!(display.unknown),
-                    &tr("display.unknown_hint"),
-                    |_| None,
-                ),
+            field(
+                state,
+                tr("display.unknown"),
+                lens!(display.unknown),
+                &tr("display.unknown_hint"),
+                |_| None,
             ),
         ],
-        18.0,
     )
+    .into()
 }
 
-pub(super) fn profile(state: &SettingsWindow) -> Element<'_, Message> {
-    flow(
-        state,
+pub(super) fn profile(state: &SettingsWindow, fit: f32) -> Element<'_, Message> {
+    Flow::new(
+        fit,
         vec![
-            (
-                LINE,
-                switch(state, tr("profile.enabled"), lens!(profile.enabled)),
+            switch(state, tr("profile.enabled"), lens!(profile.enabled)),
+            field(
+                state,
+                tr("profile.url"),
+                lens!(profile.url),
+                &detected(state, |d| &d.profile_url, "profile.url_hint"),
+                check::url,
             ),
-            (
-                BLOCK,
-                field(
-                    state,
-                    tr("profile.url"),
-                    lens!(profile.url),
-                    &detected(state, |d| &d.profile_url, "profile.url_hint"),
-                    check::url,
-                ),
+            field(
+                state,
+                tr("profile.search"),
+                lens!(profile.search_url),
+                &detected(state, |d| &d.search_url, "profile.search_hint"),
+                check::url,
             ),
-            (
-                BLOCK,
-                field(
-                    state,
-                    tr("profile.search"),
-                    lens!(profile.search_url),
-                    &detected(state, |d| &d.search_url, "profile.search_hint"),
-                    check::url,
-                ),
-            ),
-            (
-                BLOCK,
-                dial(
-                    state,
-                    tr("profile.refresh"),
-                    lens!(profile.refresh_minutes),
-                    15..=1440,
-                ),
+            dial(
+                state,
+                tr("profile.refresh"),
+                lens!(profile.refresh_minutes),
+                15..=1440,
             ),
         ],
-        18.0,
     )
+    .into()
 }
 
-pub(super) fn paths(state: &SettingsWindow) -> Element<'_, Message> {
-    flow(
-        state,
+pub(super) fn paths(state: &SettingsWindow, fit: f32) -> Element<'_, Message> {
+    Flow::new(
+        fit,
         vec![
-            (
-                BLOCK,
-                field(
-                    state,
-                    tr("paths.game"),
-                    lens!(paths.game_root),
-                    &detected(state, |d| &d.game_root, "paths.game_hint"),
-                    check::game_folder,
-                ),
+            field(
+                state,
+                tr("paths.game"),
+                lens!(paths.game_root),
+                &detected(state, |d| &d.game_root, "paths.game_hint"),
+                check::game_folder,
             ),
-            (
-                BLOCK,
-                field(
-                    state,
-                    tr("paths.user_data"),
-                    lens!(paths.user_data_dir),
-                    &detected(state, |d| &d.user_data_dir, "paths.user_data_hint"),
-                    check::user_data,
-                ),
+            field(
+                state,
+                tr("paths.user_data"),
+                lens!(paths.user_data_dir),
+                &detected(state, |d| &d.user_data_dir, "paths.user_data_hint"),
+                check::user_data,
             ),
         ],
-        18.0,
     )
+    .into()
 }
 
 pub(super) fn names(state: &SettingsWindow, table: Table) -> Element<'_, Message> {
@@ -798,7 +728,7 @@ pub(super) fn names(state: &SettingsWindow, table: Table) -> Element<'_, Message
     .into()
 }
 
-pub(super) fn phases(state: &SettingsWindow) -> Element<'_, Message> {
+pub(super) fn phases(state: &SettingsWindow, fit: f32) -> Element<'_, Message> {
     let c = state.scheme();
     let cfg = state.config.phase(state.phase);
     let saved = state.saved.phase(state.phase);
@@ -812,47 +742,44 @@ pub(super) fn phases(state: &SettingsWindow) -> Element<'_, Message> {
         )
     }));
 
-    let mut fields = column![switch_with(
-        state,
-        tr("phases.broadcast"),
-        cfg.report,
-        Message::PhaseReport,
-        cfg.report != saved.report
-    )]
-    .spacing(16);
-    // The fields come in pairs (an image and its hover, a label and its URL),
-    // so when one column runs out of height each pair shares a row instead.
-    let one_column = PHASES_TOP + LINE + (BLOCK + 16.0) * PhaseField::ALL.len() as f32;
-    let per_row = if state.two_columns(one_column) { 2 } else { 1 };
-    for pair in PhaseField::ALL.chunks(per_row) {
-        let mut line = row![].spacing(super::COLUMN_GAP);
-        for &which in pair {
-            let value = which.get(&cfg);
-            line = line.push(
-                container(field_with(
-                    state,
-                    which.label(),
-                    value,
-                    &which.hint(&cfg),
-                    move |v| Message::PhaseText(which, v),
-                    value != which.get(&saved),
-                    which.error(value),
-                ))
-                .width(Length::Fill),
-            );
-        }
-        fields = fields.push(line);
-    }
-
-    column![
+    let head = column![
         note(state, tr("phases.placeholders")),
         note(state, tr("phases.buttons_note")),
         chips,
         divider(state),
-        fields,
+        switch_with(
+            state,
+            tr("phases.broadcast"),
+            cfg.report,
+            Message::PhaseReport,
+            cfg.report != saved.report
+        ),
     ]
-    .spacing(16)
-    .into()
+    .spacing(16);
+
+    // The fields come in pairs (an image and its hover, a label and its URL),
+    // so when one column runs out of height each pair shares a row instead.
+    let fields = PhaseField::ALL
+        .into_iter()
+        .map(|which| {
+            let value = which.get(&cfg);
+            field_with(
+                state,
+                which.label(),
+                value,
+                &which.hint(&cfg),
+                move |v| Message::PhaseText(which, v),
+                value != which.get(&saved),
+                which.error(value),
+            )
+        })
+        .collect();
+
+    Flow::new(fit, fields)
+        .head(head.into())
+        .spacing(16.0)
+        .across()
+        .into()
 }
 
 fn wrapped<'a>(chips: impl IntoIterator<Item = Element<'a, Message>>) -> Element<'a, Message> {
@@ -911,7 +838,7 @@ pub(super) fn log_page(state: &SettingsWindow) -> Element<'_, Message> {
         )
         .padding(16)
         .width(Length::Fill)
-        .height(Length::Fixed(state.log_height()))
+        .height(Length::Fill)
         .style(move |_t| {
             container::background(c.surface_container).border(border::rounded(shape::MEDIUM))
         })

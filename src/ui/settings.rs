@@ -3,8 +3,8 @@ use std::io::{Read, Seek, SeekFrom};
 use std::path::{Path, PathBuf};
 use std::time::{Duration, SystemTime};
 
-use iced::widget::{button, column, container, row, scrollable, text, Space};
-use iced::{border, Color, Element, Length, Size, Task};
+use iced::widget::{button, column, container, responsive, row, scrollable, text, Space};
+use iced::{border, Color, Element, Length, Padding, Size, Task};
 
 use crate::config::{self, Config, PhaseConfig, Table};
 use crate::phase::Phase;
@@ -50,11 +50,6 @@ const EDGE: u16 = 24;
 const KEY_WIDTH: f32 = 180.0;
 const COLUMN_WIDTH: f32 = 460.0;
 const COLUMN_GAP: f32 = 32.0;
-// Status bar, action bar, heading and padding, which every page shares.
-const PAGE_CHROME: f32 = 240.0;
-// The same, plus the button row below the log.
-const LOG_CHROME: f32 = 270.0;
-const LOG_MIN_HEIGHT: f32 = 380.0;
 const REFRESH: Duration = Duration::from_secs(1);
 const LOG_TAIL_BYTES: u64 = 64 * 1024;
 
@@ -100,7 +95,6 @@ pub fn run(page: Page) -> i32 {
             tray: Tray::default(),
             picker: m3::hsv_of(m3::seed(&config)),
             picker_accent: config.theme.accent.clone(),
-            size,
         };
         let window = iced::window::latest().and_then(iced::window::gain_focus);
         (state, Task::batch([window, refresh_later()]))
@@ -118,14 +112,6 @@ pub fn run(page: Page) -> i32 {
         .title(|_: &SettingsWindow| crate::ui::tray::TOOLTIP.to_string())
         .window(window)
         .theme(|state: &SettingsWindow| m3::theme(&state.config))
-        .subscription(|_| {
-            iced::event::listen_with(|event, _status, _window| match event {
-                iced::Event::Window(iced::window::Event::Resized(size)) => {
-                    Some(Message::Resized(size))
-                }
-                _ => None,
-            })
-        })
         .run()
     {
         Ok(()) => 0,
@@ -254,7 +240,6 @@ struct SettingsWindow {
     tray: Tray,
     picker: (f32, f32, f32),
     picker_accent: String,
-    size: Size,
 }
 
 #[derive(Debug, Clone, Copy)]
@@ -365,18 +350,6 @@ impl PhaseField {
 impl SettingsWindow {
     fn scheme(&self) -> Scheme {
         Scheme::of(&self.config)
-    }
-
-    // Two columns only when one would not fit the height and two fit the width.
-    fn two_columns(&self, content_height: f32) -> bool {
-        let wide =
-            self.size.width - RAIL_WIDTH - 2.0 * f32::from(EDGE) >= 2.0 * COLUMN_WIDTH + COLUMN_GAP;
-        wide && content_height > self.size.height - PAGE_CHROME
-    }
-
-    // The log view takes the height the rest of its page leaves, never less than it used to be.
-    fn log_height(&self) -> f32 {
-        (self.size.height - LOG_CHROME).max(LOG_MIN_HEIGHT)
     }
 
     fn error(&self) -> Option<String> {
@@ -563,7 +536,6 @@ enum Message {
     PhaseReport(bool),
     OpenFolder,
     CopyLog,
-    Resized(Size),
     OpenUrl(String),
     ThemeMode(&'static str),
     ThemePalette(m3::Palette),
@@ -630,7 +602,6 @@ fn update(state: &mut SettingsWindow, message: Message) -> Task<Message> {
             task = iced::clipboard::write(state.log.clone());
             state.message = Some((tr("log.copied"), true));
         }
-        Message::Resized(size) => state.size = size,
         // The shell runs whatever it is given, and the profile URL comes from a file.
         Message::OpenUrl(url) if url.starts_with("https://") => crate::win::open_url(&url),
         Message::OpenUrl(_) => {}
@@ -748,31 +719,43 @@ fn page(state: &SettingsWindow) -> Element<'_, Message> {
         .size(type_scale::HEADLINE_SMALL)
         .color(c.on_surface);
 
+    // Below the heading, which stays put, so a page knows the height it has.
+    let below = Padding::from(EDGE).top(0);
     let body: Element<Message> = match state.page {
-        Page::Overview => pages::overview(state),
-        Page::General => pages::general(state),
-        Page::Identity => pages::identity(state),
-        Page::Display => pages::display(state),
-        Page::Theme => pages::theme_page(state),
-        Page::Profile => pages::profile(state),
-        Page::Paths => pages::paths(state),
-        Page::Servers => pages::names(state, Table::Servers),
-        Page::Characters => pages::names(state, Table::Characters),
-        Page::Phases => pages::phases(state),
-        Page::Log => pages::log_page(state),
-        Page::Placeholders => pages::placeholders(state),
-        Page::About => pages::about(state),
+        // The log scrolls itself and takes the height left.
+        Page::Log => container(pages::log_page(state))
+            .padding(below)
+            .height(Length::Fill)
+            .into(),
+        _ => responsive(move |size| {
+            let fit = size.height - f32::from(EDGE);
+            let body = match state.page {
+                Page::Overview => pages::overview(state, fit),
+                Page::General => pages::general(state, fit),
+                Page::Identity => pages::identity(state, fit),
+                Page::Display => pages::display(state, fit),
+                Page::Theme => pages::theme_page(state),
+                Page::Profile => pages::profile(state, fit),
+                Page::Paths => pages::paths(state, fit),
+                Page::Servers => pages::names(state, Table::Servers),
+                Page::Characters => pages::names(state, Table::Characters),
+                Page::Phases => pages::phases(state, fit),
+                Page::Placeholders => pages::placeholders(state),
+                Page::About => pages::about(state),
+                Page::Log => unreachable!("the log page is drawn unscrolled"),
+            };
+            scrollable(container(body).padding(below).width(Length::Fill))
+                .height(Length::Fill)
+                .style(move |_theme, status| m3::scroll_style(c, status))
+                .into()
+        })
+        .into(),
     };
-
-    let content = column![heading, Space::new().height(8), body]
-        .spacing(4)
-        .width(Length::Fill);
 
     container(
         column![
-            scrollable(container(content).padding(EDGE))
-                .height(Length::Fill)
-                .style(move |_theme, status| m3::scroll_style(c, status)),
+            container(heading).padding(Padding::from(EDGE).bottom(12)),
+            body,
             actions(state),
         ]
         .width(Length::Fill),

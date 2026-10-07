@@ -1,10 +1,10 @@
+use iced::advanced::widget::{Operation, Tree, Widget};
+use iced::advanced::{layout, mouse, overlay, renderer, Clipboard, Layout, Shell};
 use iced::widget::text::IntoFragment;
-use iced::widget::{
-    button, column, container, row, slider, text, text_input, toggler, Column, Space,
-};
-use iced::{border, Background, Color, Element, Length, Padding};
+use iced::widget::{button, column, container, row, slider, text, text_input, toggler, Space};
+use iced::{border, Background, Color, Element, Event, Length, Padding, Point, Rectangle, Size};
 
-use super::{Lens, Message, SettingsWindow};
+use super::{Lens, Message, SettingsWindow, COLUMN_GAP, COLUMN_WIDTH};
 use crate::ui::m3::{self, shape, type_scale, Scheme};
 
 pub(super) fn dot(c: Scheme, showing: bool) -> Element<'static, Message> {
@@ -32,33 +32,237 @@ pub(super) fn marked<'a>(
         .into()
 }
 
-// One column, or two when one would run out of height. Each item carries its
-// estimated height. Items keep their reading order, down the left column and
-// then the right, split where half the height falls.
-pub(super) fn flow<'a>(
-    state: &SettingsWindow,
-    items: Vec<(f32, Element<'a, Message>)>,
+// One column, or two once one would run past `fit` and the width holds two.
+// Heights are measured at layout, not estimated. Down splits the cells where
+// half the height falls, Across pairs them on rows, and a head spans both.
+pub(super) struct Flow<'a> {
+    children: Vec<Element<'a, Message>>,
+    head: bool,
+    across: bool,
     spacing: f32,
-) -> Element<'a, Message> {
-    let total: f32 = items.iter().map(|(height, _)| height + spacing).sum();
-    if !state.two_columns(total) {
-        return Column::with_children(items.into_iter().map(|(_, item)| item))
-            .spacing(spacing)
-            .into();
-    }
-    let (mut left, mut right) = (column![].spacing(spacing), column![].spacing(spacing));
-    let mut placed = 0.0;
-    for (height, item) in items {
-        if placed * 2.0 < total {
-            left = left.push(item);
-            placed += height + spacing;
-        } else {
-            right = right.push(item);
+    fit: f32,
+}
+
+impl<'a> Flow<'a> {
+    pub(super) fn new(fit: f32, cells: Vec<Element<'a, Message>>) -> Self {
+        Flow {
+            children: cells,
+            head: false,
+            across: false,
+            spacing: 18.0,
+            fit,
         }
     }
-    row![left.width(Length::Fill), right.width(Length::Fill)]
-        .spacing(super::COLUMN_GAP)
-        .into()
+
+    pub(super) fn head(mut self, head: Element<'a, Message>) -> Self {
+        self.children.insert(0, head);
+        self.head = true;
+        self
+    }
+
+    pub(super) fn spacing(mut self, spacing: f32) -> Self {
+        self.spacing = spacing;
+        self
+    }
+
+    pub(super) fn across(mut self) -> Self {
+        self.across = true;
+        self
+    }
+}
+
+impl Widget<Message, iced::Theme, iced::Renderer> for Flow<'_> {
+    fn children(&self) -> Vec<Tree> {
+        self.children.iter().map(Tree::new).collect()
+    }
+
+    fn diff(&self, tree: &mut Tree) {
+        tree.diff_children(&self.children);
+    }
+
+    fn size(&self) -> Size<Length> {
+        Size::new(Length::Fill, Length::Shrink)
+    }
+
+    fn layout(
+        &mut self,
+        tree: &mut Tree,
+        renderer: &iced::Renderer,
+        limits: &layout::Limits,
+    ) -> layout::Node {
+        let width = limits.max().width;
+        let half = (width - COLUMN_GAP) / 2.0;
+        let spacing = self.spacing;
+        let skip = usize::from(self.head);
+        let mut measure = |widths: &dyn Fn(usize) -> f32| -> Vec<layout::Node> {
+            self.children
+                .iter_mut()
+                .zip(&mut tree.children)
+                .enumerate()
+                .map(|(index, (child, tree))| {
+                    let limits =
+                        layout::Limits::new(Size::ZERO, Size::new(widths(index), f32::INFINITY));
+                    child.as_widget_mut().layout(tree, renderer, &limits)
+                })
+                .collect()
+        };
+        let stack = |nodes: &mut [layout::Node], x: f32, mut y: f32| {
+            for node in nodes {
+                node.move_to_mut(Point::new(x, y));
+                y += node.size().height + spacing;
+            }
+            y
+        };
+
+        let mut nodes = measure(&|_| width);
+        let one = stack(&mut nodes, 0.0, 0.0) - spacing;
+        if one <= self.fit || half < COLUMN_WIDTH {
+            return layout::Node::with_children(Size::new(width, one.max(0.0)), nodes);
+        }
+
+        let mut nodes = measure(&|index| if index < skip { width } else { half });
+        let top = stack(&mut nodes[..skip], 0.0, 0.0);
+        let cells = &mut nodes[skip..];
+        let bottom = if self.across {
+            let mut y = top;
+            for pair in cells.chunks_mut(2) {
+                let mut tallest: f32 = 0.0;
+                for (side, node) in pair.iter_mut().enumerate() {
+                    node.move_to_mut(Point::new(side as f32 * (half + COLUMN_GAP), y));
+                    tallest = tallest.max(node.size().height);
+                }
+                y += tallest + spacing;
+            }
+            y
+        } else {
+            let total: f32 = cells.iter().map(|n| n.size().height + spacing).sum();
+            let mut placed = 0.0;
+            let split = cells
+                .iter()
+                .take_while(|node| {
+                    let fits = placed * 2.0 < total;
+                    placed += node.size().height + spacing;
+                    fits
+                })
+                .count();
+            let (left, right) = cells.split_at_mut(split);
+            stack(left, 0.0, top).max(stack(right, half + COLUMN_GAP, top))
+        };
+        layout::Node::with_children(Size::new(width, (bottom - spacing).max(0.0)), nodes)
+    }
+
+    fn operate(
+        &mut self,
+        tree: &mut Tree,
+        layout: Layout<'_>,
+        renderer: &iced::Renderer,
+        operation: &mut dyn Operation,
+    ) {
+        operation.container(None, layout.bounds());
+        operation.traverse(&mut |operation| {
+            for ((child, state), layout) in self
+                .children
+                .iter_mut()
+                .zip(&mut tree.children)
+                .zip(layout.children())
+            {
+                child
+                    .as_widget_mut()
+                    .operate(state, layout, renderer, operation);
+            }
+        });
+    }
+
+    fn update(
+        &mut self,
+        tree: &mut Tree,
+        event: &Event,
+        layout: Layout<'_>,
+        cursor: mouse::Cursor,
+        renderer: &iced::Renderer,
+        clipboard: &mut dyn Clipboard,
+        shell: &mut Shell<'_, Message>,
+        viewport: &Rectangle,
+    ) {
+        for ((child, state), layout) in self
+            .children
+            .iter_mut()
+            .zip(&mut tree.children)
+            .zip(layout.children())
+        {
+            child.as_widget_mut().update(
+                state, event, layout, cursor, renderer, clipboard, shell, viewport,
+            );
+        }
+    }
+
+    fn mouse_interaction(
+        &self,
+        tree: &Tree,
+        layout: Layout<'_>,
+        cursor: mouse::Cursor,
+        viewport: &Rectangle,
+        renderer: &iced::Renderer,
+    ) -> mouse::Interaction {
+        self.children
+            .iter()
+            .zip(&tree.children)
+            .zip(layout.children())
+            .map(|((child, state), layout)| {
+                child
+                    .as_widget()
+                    .mouse_interaction(state, layout, cursor, viewport, renderer)
+            })
+            .max()
+            .unwrap_or_default()
+    }
+
+    fn draw(
+        &self,
+        tree: &Tree,
+        renderer: &mut iced::Renderer,
+        theme: &iced::Theme,
+        style: &renderer::Style,
+        layout: Layout<'_>,
+        cursor: mouse::Cursor,
+        viewport: &Rectangle,
+    ) {
+        for ((child, state), layout) in self
+            .children
+            .iter()
+            .zip(&tree.children)
+            .zip(layout.children())
+            .filter(|(_, layout)| layout.bounds().intersects(viewport))
+        {
+            child
+                .as_widget()
+                .draw(state, renderer, theme, style, layout, cursor, viewport);
+        }
+    }
+
+    fn overlay<'b>(
+        &'b mut self,
+        tree: &'b mut Tree,
+        layout: Layout<'b>,
+        renderer: &iced::Renderer,
+        viewport: &Rectangle,
+        translation: iced::Vector,
+    ) -> Option<overlay::Element<'b, Message, iced::Theme, iced::Renderer>> {
+        overlay::from_children(
+            &mut self.children,
+            tree,
+            layout,
+            renderer,
+            viewport,
+            translation,
+        )
+    }
+}
+
+impl<'a> From<Flow<'a>> for Element<'a, Message> {
+    fn from(flow: Flow<'a>) -> Self {
+        Element::new(flow)
+    }
 }
 
 pub(super) fn divider(state: &SettingsWindow) -> Element<'_, Message> {

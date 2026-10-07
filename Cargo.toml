@@ -21,6 +21,7 @@ iced = { version = "0.14", default-features = false, features = [
     "tiny-skia",
     "thread-pool",
     "image-without-codecs",
+    "advanced",
 ] }
 material-color-rs = "0.1"
 png = "0.18"

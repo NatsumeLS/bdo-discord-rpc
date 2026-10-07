@@ -10,6 +10,18 @@ fn main() {
     println!("cargo:rustc-link-arg-bins=/DELAYLOAD:wpcap.dll");
     println!("cargo:rustc-link-lib=delayimp");
 
+    for path in [".git/HEAD", ".git/refs/heads", ".git/packed-refs"] {
+        if std::path::Path::new(path).exists() {
+            println!("cargo:rerun-if-changed={path}");
+        }
+    }
+    let version = env!("CARGO_PKG_VERSION");
+    let version = match commit() {
+        Some(hash) => format!("{version} ({hash})"),
+        None => version.to_string(),
+    };
+    println!("cargo:rustc-env=VERSION={version}");
+
     let mut resource = winresource::WindowsResource::new();
     resource.set_icon("assets/icon.ico");
     if let Err(e) = resource.compile() {
@@ -26,6 +38,17 @@ fn main() {
         .collect();
     let out = PathBuf::from(std::env::var("OUT_DIR").unwrap()).join("libraries.rs");
     std::fs::write(out, format!("&[{body}]")).unwrap();
+}
+
+fn commit() -> Option<String> {
+    let output = std::process::Command::new("git")
+        .args(["rev-parse", "--short=7", "HEAD"])
+        .output()
+        .ok()?;
+    output
+        .status
+        .success()
+        .then(|| String::from_utf8_lossy(&output.stdout).trim().to_string())
 }
 
 fn libraries() -> Result<Vec<(String, String)>, String> {

@@ -59,7 +59,7 @@ fn main() {
 }
 
 fn print_help() {
-    println!("bdo-discord-rpc {}", env!("CARGO_PKG_VERSION"));
+    println!("bdo-discord-rpc {}", env!("VERSION"));
     println!();
     for (usage, what) in [
         ("", "Run in the System Tray and update Discord"),
@@ -93,7 +93,7 @@ fn run() -> i32 {
         return 0;
     }
     win::enable_logfile(config::log_path());
-    log(&format!("Started version {}", env!("CARGO_PKG_VERSION")));
+    log(&format!("Started version {}", env!("VERSION")));
     if let Ok(config) = config::load_or_create(&config::config_path()) {
         ui::lang::apply(&config);
     }

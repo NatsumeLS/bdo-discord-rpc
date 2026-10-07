@@ -81,11 +81,7 @@ pub(super) fn about(state: &SettingsWindow) -> Element<'_, Message> {
         divider(state),
         column![
             heading(state, tr("about.this_app")),
-            pair(
-                state,
-                tr("about.version"),
-                env!("CARGO_PKG_VERSION").to_string()
-            ),
+            pair(state, tr("about.version"), env!("VERSION").to_string()),
             pair(
                 state,
                 tr("about.license"),

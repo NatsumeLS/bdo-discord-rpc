@@ -371,6 +371,19 @@ pub fn mix(base: Color, over: Color, amount: f32) -> Color {
     }
 }
 
+// iced draws the placeholder in the field's own font, so it is italic only while empty.
+pub fn field_font(value: &str) -> iced::Font {
+    let style = if value.is_empty() {
+        iced::font::Style::Italic
+    } else {
+        iced::font::Style::Normal
+    };
+    iced::Font {
+        style,
+        ..iced::Font::DEFAULT
+    }
+}
+
 pub fn field_style(c: Scheme, status: text_input::Status, wrong: bool) -> text_input::Style {
     let (outline, width) = match status {
         _ if wrong => (c.error, 2.0),
@@ -386,7 +399,10 @@ pub fn field_style(c: Scheme, status: text_input::Status, wrong: bool) -> text_i
             radius: shape::EXTRA_SMALL.into(),
         },
         icon: c.on_surface_variant,
-        placeholder: c.on_surface_variant,
+        placeholder: Color {
+            a: 0.6,
+            ..c.on_surface_variant
+        },
         value: if wrong { c.error } else { c.on_surface },
         selection: c.primary_container,
     }

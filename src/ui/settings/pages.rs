@@ -696,6 +696,7 @@ pub(super) fn names(state: &SettingsWindow, table: Table) -> Element<'_, Message
             text_input(&key_hint, &pending.0)
                 .on_input(move |v| Message::TablePendingKey(table, v))
                 .size(type_scale::BODY_MEDIUM)
+                .font(m3::field_font(&pending.0))
                 .padding(Padding::from([8, 12]).right(12.0 + m3::CLEAR_ROOM))
                 .width(Length::Fixed(KEY_WIDTH))
                 .style(move |_t, status| m3::field_style(c, status, wrong_key)),
@@ -706,6 +707,7 @@ pub(super) fn names(state: &SettingsWindow, table: Table) -> Element<'_, Message
             text_input(&prompt::hint(table), &pending.1)
                 .on_input(move |v| Message::TablePendingName(table, v))
                 .size(type_scale::BODY_MEDIUM)
+                .font(m3::field_font(&pending.1))
                 .padding(Padding::from([8, 12]).right(12.0 + m3::CLEAR_ROOM))
                 .style(move |_t, status| m3::field_style(c, status, false)),
             (!pending.1.is_empty()).then(|| Message::TablePendingName(table, String::new())),

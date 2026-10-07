@@ -248,6 +248,7 @@ fn view(state: &Prompt) -> Element<'_, Message> {
         .on_input(Message::NameChanged)
         .on_submit(Message::Submit)
         .size(type_scale::BODY_LARGE)
+        .font(m3::field_font(&state.name))
         .padding(Padding::from([12, 16]).right(16.0 + m3::CLEAR_ROOM))
         .style(move |_theme, status| m3::field_style(c, status, wrong));
     let field = m3::clearable(

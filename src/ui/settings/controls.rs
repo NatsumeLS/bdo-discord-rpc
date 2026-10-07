@@ -367,6 +367,7 @@ pub(super) fn field_with<'a>(
     let input = text_input(placeholder, value)
         .on_input(on_input)
         .size(type_scale::BODY_LARGE)
+        .font(m3::field_font(value))
         .padding(Padding::from([12, 16]).right(16.0 + m3::CLEAR_ROOM))
         .style(move |_theme, status| m3::field_style(c, status, wrong));
     let mut control = column![

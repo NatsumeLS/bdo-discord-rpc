@@ -6,6 +6,7 @@ Refreshes assets/nodes.json and assets/territories.json from a bdo-viewer extrac
 ./scripts/world.ps1
 ./scripts/world.ps1 path/to/world.json
 #>
+#Requires -Version 7
 param(
     [string]$Source = (Join-Path $env:LOCALAPPDATA "bdo-viewer\data\world.json")
 )

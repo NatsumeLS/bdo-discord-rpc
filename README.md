@@ -1,9 +1,6 @@
 # Black Desert Discord Rich Presence
 
-Discord Rich Presence for Black Desert.\
-It reads the files the game writes to disk.\
-With Npcap installed, it also watches the game's network traffic.\
-It never reads the game's memory and never sends anything to the game.
+Discord Rich Presence for Black Desert. It reads the files the game writes to disk. With Npcap installed, it also watches the game's network traffic. It never reads the game's memory and never sends anything to the game.
 
 ## Features
 
@@ -16,7 +13,7 @@ It never reads the game's memory and never sends anything to the game.
 - Every line of text and both buttons are templates you can edit per phase.
 - Material Design 3 interface, light or dark, colored from an accent color you pick.
 
-## Install
+## Installation
 
 Windows only.
 
@@ -27,8 +24,7 @@ Windows only.
 
 ## Usage
 
-It sits in the system tray.\
-It shows your presence while the game runs, and clears it when the game closes.
+It sits in the system tray. It shows your presence while the game runs, and clears it when the game closes.
 
 - Left-click the tray icon to open or close the settings.
 - Right-click it for **Run at Startup**, **Reload Config** and **Quit**.
@@ -39,21 +35,18 @@ It shows your presence while the game runs, and clears it when the game closes.
 
 ## Packet Capture
 
-[Npcap](https://npcap.com/#download) is optional.\
-With it, the app also listens to the game's own connection, which gives it:
+[Npcap](https://npcap.com/#download) is optional. With it, the app also listens to the game's own connection, which gives it:
 
 - Your location, as `{territory}` and `{node}` in the templates.
 - The server, character and family as soon as you enter the world.
 - Your character's in-game name, so you are not asked to name it.
 - Readings that keep working after the game's log file hits its size limit.
 
-It only listens, and never sends anything.\
-Without Npcap, everything else still works from the game's files.
+It only listens, and never sends anything. Without Npcap, everything else still works from the game's files.
 
 ## Adventurer Profile
 
-Your characters' names, classes and portraits are always shown.\
-Levels, guild, gear score, energy, contribution points and life skills stay hidden until you make them public:
+Your characters' names, classes and portraits are always shown. Levels, guild, gear score, energy, contribution points and life skills stay hidden until you make them public:
 
 1. Sign in on your region's website.
 2. Open your Adventurer Profile.
@@ -74,16 +67,13 @@ In a region that is not supported yet, the presence should still work, without s
 
 ## Limits
 
-- New servers have to be named once, and the app suggests the known names.\
-  Without Npcap, new characters have to be named too.
-- Start it before entering a character.\
-  Otherwise it shows your main character until you switch character or, with Npcap, change channel.
+- New servers have to be named once, and the app suggests the known names. Without Npcap, new characters have to be named too.
+- Start it before entering a character. Otherwise it shows your main character until you switch character or, with Npcap, change channel.
 - With several accounts on one PC, set **Family Name** in the settings.
 
-## Build
+## Building
 
-Run the setup script once.\
-It installs Rust, the MSVC build tools and the [Npcap SDK](https://npcap.com/#download), and is safe to run again.
+Run the setup script once. It installs Rust, the MSVC build tools and the [Npcap SDK](https://npcap.com/#download), and is safe to run again.
 
 ```powershell
 ./scripts/setup.ps1
@@ -92,5 +82,4 @@ cargo build --release
 
 ### Location Data
 
-The node, region and territory data in `assets/game/` comes from the game's own data files.\
-It is refreshed by the maintainer after patches that add areas.
+The node, region and territory data in `assets/game/` comes from the game's own data files. It is refreshed by the maintainer after patches that add areas.

@@ -913,7 +913,9 @@ impl<'a> Watcher<'a> {
             CaptureState::Listening(since) => since,
             _ => 0,
         };
-        let entered = self.captured_raw().entered;
+        // Held from the entry until its connection ends, so the log's In Game
+        // after the post-entry loading screen still counts it.
+        let entered = self.captured_raw().character.is_some();
         let s = &mut self.session;
         let (Some(Phase::Play), Some(since)) = (s.state.phase, s.state.phase_since) else {
             return;
@@ -922,7 +924,7 @@ impl<'a> Watcher<'a> {
         let missed = listening != 0
             && since > listening
             && Local::now().timestamp() - since >= window
-            && entered.is_none_or(|at| at < since - window);
+            && !entered;
         if missed && s.capture_missed_for != Some(since) {
             s.capture_missed_for = Some(since);
             win::warn("Capture: Did not see the Character enter, falling back to the Game Files");

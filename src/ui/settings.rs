@@ -522,7 +522,6 @@ enum Message {
     Act(Action),
     Bool(Lens<bool>, bool),
     Text(Lens<String>, String),
-    Number(Lens<u64>, u64),
     TableRename(Table, String, String),
     TableRemove(Table, String),
     TableRestore(Table, String),
@@ -572,7 +571,6 @@ fn update(state: &mut SettingsWindow, message: Message) -> Task<Message> {
         },
         Message::Bool(lens, v) => *(lens.get_mut)(&mut state.config) = v,
         Message::Text(lens, v) => *(lens.get_mut)(&mut state.config) = v,
-        Message::Number(lens, v) => *(lens.get_mut)(&mut state.config) = v,
         Message::TableRename(table, key, name) => {
             if let Some(slot) = table.entries_mut(&mut state.config).get_mut(&key) {
                 *slot = name;

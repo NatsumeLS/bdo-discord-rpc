@@ -82,7 +82,6 @@ pub struct Paths {
 pub struct ProfileConfig {
     pub enabled: bool,
     pub url: String,
-    pub refresh_minutes: u64,
     pub search_url: String,
 }
 
@@ -130,7 +129,6 @@ impl Default for ProfileConfig {
         ProfileConfig {
             enabled: true,
             url: String::new(),
-            refresh_minutes: 60,
             search_url: String::new(),
         }
     }
@@ -297,8 +295,6 @@ pub fn load_or_create(path: &Path) -> Result<Config, String> {
             .entry(phase.key().to_string())
             .or_insert_with(|| phase_defaults(phase));
     }
-
-    config.profile.refresh_minutes = config.profile.refresh_minutes.clamp(15, 1440);
 
     Ok(config)
 }

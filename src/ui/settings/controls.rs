@@ -1,7 +1,7 @@
 use iced::advanced::widget::{Operation, Tree, Widget};
 use iced::advanced::{layout, mouse, overlay, renderer, Clipboard, Layout, Shell};
 use iced::widget::text::IntoFragment;
-use iced::widget::{column, container, row, slider, text, text_input, toggler, Space};
+use iced::widget::{column, container, row, text, text_input, toggler, Space};
 use iced::{border, Background, Color, Element, Event, Length, Padding, Point, Rectangle, Size};
 
 use super::{Lens, Message, SettingsWindow, COLUMN_GAP, COLUMN_WIDTH};
@@ -383,52 +383,4 @@ pub(super) fn field_with<'a>(
         control = control.push(text(reason).size(type_scale::BODY_MEDIUM).color(c.error));
     }
     marked(c, control.into(), dirty)
-}
-
-pub(super) fn dial<'a>(
-    state: &SettingsWindow,
-    label: impl IntoFragment<'a>,
-    lens: Lens<u64>,
-    range: std::ops::RangeInclusive<u64>,
-) -> Element<'a, Message> {
-    let c = state.scheme();
-    let value = *(lens.get)(&state.config);
-    let control = column![
-        row![
-            text(label)
-                .size(type_scale::BODY_MEDIUM)
-                .color(c.on_surface_variant),
-            Space::new().width(Length::Fill),
-            text(value.to_string())
-                .size(type_scale::BODY_MEDIUM)
-                .color(c.primary),
-        ],
-        // u32, since the slider needs `f64: From<T>` and u64 has none.
-        slider(
-            *range.start() as u32..=*range.end() as u32,
-            value as u32,
-            move |v| Message::Number(lens, u64::from(v)),
-        )
-        .style(move |_theme, _status| slider::Style {
-            rail: slider::Rail {
-                backgrounds: (
-                    Background::Color(c.primary),
-                    Background::Color(c.secondary_container),
-                ),
-                width: 6.0,
-                border: border::rounded(shape::FULL),
-            },
-            handle: slider::Handle {
-                shape: slider::HandleShape::Rectangle {
-                    width: 4,
-                    border_radius: shape::FULL.into(),
-                },
-                background: Background::Color(c.primary),
-                border_width: 0.0,
-                border_color: Color::TRANSPARENT,
-            },
-        }),
-    ]
-    .spacing(6);
-    marked(c, control.into(), state.changed(lens))
 }

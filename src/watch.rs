@@ -23,6 +23,7 @@ use rust_i18n::t;
 
 const POLL: Duration = Duration::from_secs(1);
 const DEBOUNCE: Duration = Duration::from_secs(3);
+const PROFILE_MAX_AGE: i64 = 60 * 60;
 
 const CONNECT_MIN_BACKOFF: u64 = 5;
 const CONNECT_MAX_BACKOFF: u64 = 60;
@@ -238,10 +239,9 @@ pub fn refresh_profile(
         }
     }
 
-    let age_limit = (config.profile.refresh_minutes * 60) as i64;
     if profile
         .as_ref()
-        .is_some_and(|p| Local::now().timestamp() - p.fetched_at < age_limit)
+        .is_some_and(|p| Local::now().timestamp() - p.fetched_at < PROFILE_MAX_AGE)
     {
         return Fetch::Skipped;
     }

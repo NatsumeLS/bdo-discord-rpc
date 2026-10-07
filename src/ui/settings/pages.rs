@@ -6,9 +6,7 @@ use iced::widget::{
 };
 use iced::{border, gradient, Background, Color, Element, Length, Padding, Radians};
 
-use super::controls::{
-    dial, divider, dot, field, field_with, marked, note, switch, switch_with, Flow,
-};
+use super::controls::{divider, dot, field, field_with, marked, note, switch, switch_with, Flow};
 use super::{check, Message, PhaseField, SettingsWindow, KEY_WIDTH};
 use crate::config::{self, Table};
 use crate::phase::Phase;
@@ -573,12 +571,6 @@ pub(super) fn profile(state: &SettingsWindow, fit: f32) -> Element<'_, Message> 
                 lens!(profile.search_url),
                 &detected(state, |d| &d.search_url, "profile.search_hint"),
                 check::url,
-            ),
-            dial(
-                state,
-                tr("profile.refresh"),
-                lens!(profile.refresh_minutes),
-                15..=1440,
             ),
         ],
     )

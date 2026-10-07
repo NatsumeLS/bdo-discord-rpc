@@ -268,7 +268,18 @@ pub fn refresh_profile(
         }
     };
 
-    match profile::fetch(&target) {
+    // A search with no exact match takes its first result, which may be
+    // another family's page.
+    let searched = config.profile.url.trim().is_empty();
+    let fetched =
+        profile::fetch(&target).and_then(|fetched| match (family, fetched.family.as_deref()) {
+            (Some(wanted), Some(found)) if searched && !wanted.eq_ignore_ascii_case(found) => {
+                *url = None;
+                Err(format!("Found the Page of {found}, not {wanted}"))
+            }
+            _ => Ok(fetched),
+        });
+    match fetched {
         Ok(fetched) => {
             match fetched.main() {
                 Some(main) => log(&format!(

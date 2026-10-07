@@ -9,6 +9,37 @@ pub struct Region {
     pub search: String,
     #[serde(default)]
     pub servers: Vec<String>,
+    // Flattened, so a region missing any capture key has no capture rather
+    // than failing the whole file.
+    #[serde(flatten)]
+    pub capture: Option<Wire>,
+}
+
+/// What the packet capture decodes, which moves with each client build.
+/// Offsets count from the start of the frame, header included.
+#[derive(Deserialize)]
+pub struct Wire {
+    /// The client build these were read from.
+    pub version: u32,
+    pub world_port: u16,
+    pub list: u16,
+    pub enter: u16,
+    pub enter_length: usize,
+    pub enter_id: usize,
+    pub enter_name: usize,
+    pub enter_family: usize,
+    pub enter_position: usize,
+    pub position: u16,
+    pub position_at: usize,
+    pub server_hosts: String,
+    pub server_count: u32,
+}
+
+impl Wire {
+    /// The host of world server `n`, like `game07` for `game{nn}`.
+    pub fn server_host(&self, n: u32) -> String {
+        self.server_hosts.replace("{nn}", &format!("{n:02}"))
+    }
 }
 
 fn all() -> &'static BTreeMap<String, Region> {

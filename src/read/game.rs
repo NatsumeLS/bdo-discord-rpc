@@ -1,3 +1,4 @@
+use std::io::Read;
 use std::net::{Ipv4Addr, SocketAddrV4};
 use std::path::{Path, PathBuf};
 use std::time::{Duration, SystemTime};
@@ -227,6 +228,15 @@ pub fn detect_service(root: &Path) -> Option<String> {
         }
     }
     None
+}
+
+/// The client build, the first u32 of the PAZ index.
+pub fn client_version(root: &Path) -> Option<u32> {
+    let mut bytes = [0u8; 4];
+    std::fs::File::open(root.join(r"Paz\pad00000.meta"))
+        .and_then(|mut file| file.read_exact(&mut bytes))
+        .ok()?;
+    Some(u32::from_le_bytes(bytes))
 }
 
 pub fn default_user_data_dir() -> Option<PathBuf> {

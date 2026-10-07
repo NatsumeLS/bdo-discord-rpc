@@ -213,7 +213,7 @@ fn probe() -> i32 {
                 or_unknown(&region),
                 service.as_deref().unwrap_or("no service.ini TYPE")
             );
-            for (local, remote, state) in process.pid.map(game::connections).unwrap_or_default() {
+            for (local, remote, state) in game::connections(process.pid) {
                 println!("Connection: {local} -> {remote} (state {state})");
             }
 
@@ -233,7 +233,7 @@ fn probe() -> i32 {
                 state.game_server.as_deref().unwrap_or("(none)")
             );
         }
-        None => println!("Game Root : (not running, and no Override in the Config)"),
+        None => println!("Game Root : (not running)"),
     }
 
     let user_data = resolve_user_data_dir(&config);

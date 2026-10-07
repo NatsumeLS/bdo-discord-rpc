@@ -22,20 +22,20 @@ const STILL_ACTIVE: u32 = 259;
 
 #[derive(Clone)]
 pub struct GameProcess {
-    pub pid: Option<u32>,
+    pub pid: u32,
     pub root: PathBuf,
     pub started_at: Option<SystemTime>,
 }
 
 #[derive(Default)]
 pub struct GameFinder {
-    known: Option<(u32, GameProcess)>,
+    known: Option<GameProcess>,
 }
 
 impl GameFinder {
     pub fn find(&mut self) -> Option<GameProcess> {
-        if let Some((pid, known)) = &self.known {
-            if still_the_game(*pid, known.started_at) {
+        if let Some(known) = &self.known {
+            if still_the_game(known.pid, known.started_at) {
                 return Some(known.clone());
             }
             self.known = None;
@@ -43,11 +43,11 @@ impl GameFinder {
 
         let (pid, exe, started_at) = first_process(GAME_EXE)?;
         let game = GameProcess {
-            pid: Some(pid),
+            pid,
             root: game_root(&exe)?,
             started_at,
         };
-        self.known = Some((pid, game.clone()));
+        self.known = Some(game.clone());
         Some(game)
     }
 }

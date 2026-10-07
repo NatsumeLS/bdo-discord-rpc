@@ -677,14 +677,11 @@ fn capture(dump: Option<&str>, verbose: bool, mut on: impl FnMut(Event)) -> Resu
             Some((game, at)) if game || at.elapsed() < RECHECK => game,
             _ => {
                 let process = finder.find();
-                let game = process
-                    .as_ref()
-                    .and_then(|process| process.pid)
-                    .is_some_and(|pid| {
-                        game::connections(pid)
-                            .iter()
-                            .any(|&(l, r, _)| (l, r) == key)
-                    });
+                let game = process.as_ref().is_some_and(|process| {
+                    game::connections(process.pid)
+                        .iter()
+                        .any(|&(l, r, _)| (l, r) == key)
+                });
                 if running.is_none() {
                     running = process;
                 }

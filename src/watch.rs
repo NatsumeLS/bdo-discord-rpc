@@ -148,15 +148,14 @@ pub struct Shared {
     pub server_domain: Mutex<Option<String>>,
 }
 
+// The configured folder replaces the root only: the process is what says the
+// game is running and which log is this session's.
 pub fn resolve_game(config: &Config, finder: &mut GameFinder) -> Option<GameProcess> {
-    match non_empty(&config.paths.game_root) {
-        Some(root) => Some(GameProcess {
-            pid: None,
-            root: root.into(),
-            started_at: None,
-        }),
-        None => finder.find(),
+    let mut process = finder.find()?;
+    if let Some(root) = non_empty(&config.paths.game_root) {
+        process.root = root.into();
     }
+    Some(process)
 }
 
 pub fn resolve_user_data_dir(config: &Config) -> Option<PathBuf> {

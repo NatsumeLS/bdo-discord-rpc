@@ -92,9 +92,5 @@ cargo build --release
 
 ### Location Data
 
-The node and territory names in `assets/` come from [bdo-viewer](https://github.com/iDevelopThings/bdo-viewer)'s extraction of the game data.\
-After a patch that adds areas, extract again with bdo-viewer, then refresh them:
-
-```powershell
-./scripts/world.ps1
-```
+The node, region and territory data in `assets/game/` comes from the game's own data files.\
+It is refreshed by the maintainer after patches that add areas.

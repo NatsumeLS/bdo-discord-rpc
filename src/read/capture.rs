@@ -20,29 +20,36 @@ const HEADER: usize = 5;
 const SYNC_CHAIN: usize = 3;
 const MAX_PENDING: usize = 256;
 
+// The game's own tables, as tools/dump.rs writes them to assets/game.
 #[derive(Deserialize)]
-struct WorldNode {
+struct Exploration {
     key: u32,
-    name: String,
-    #[serde(default)]
     enabled: bool,
-    #[serde(default)]
+    main: bool,
     radius: f32,
-    position: Option<[f32; 3]>,
-    children: Option<Urns>,
-    territory: Option<String>,
+    anchor: [f32; 3],
 }
 
 #[derive(Deserialize)]
-struct Urns {
-    urns: Vec<String>,
+struct Waypoints {
+    points: Vec<Waypoint>,
+    links: Vec<(u32, u32)>,
 }
 
 #[derive(Deserialize)]
-struct Territory {
-    urn: String,
-    name: String,
+struct Waypoint {
+    key: u32,
+    position: [f32; 3],
 }
+
+#[derive(Deserialize)]
+struct Region {
+    territory: u8,
+    position: [f32; 3],
+}
+
+/// Table, then id, then its text: 12 territory names, 29 node names.
+type Localization = HashMap<String, HashMap<String, String>>;
 
 struct Node {
     place: Place,
@@ -61,37 +68,61 @@ pub struct Place {
 fn nodes() -> &'static [Node] {
     static NODES: OnceLock<Vec<Node>> = OnceLock::new();
     NODES.get_or_init(|| {
-        let (Ok(nodes), Ok(territories)) = (
-            serde_json::from_str::<Vec<WorldNode>>(include_str!("../../assets/nodes.json")),
-            serde_json::from_str::<Vec<Territory>>(include_str!("../../assets/territories.json")),
+        let (Ok(nodes), Ok(waypoints), Ok(regions), Ok(text)) = (
+            serde_json::from_str::<Vec<Exploration>>(include_str!(
+                "../../assets/game/exploration.json"
+            )),
+            serde_json::from_str::<Waypoints>(include_str!("../../assets/game/waypoints.json")),
+            serde_json::from_str::<Vec<Region>>(include_str!("../../assets/game/regions.json")),
+            serde_json::from_str::<Localization>(include_str!(
+                "../../assets/game/localization.json"
+            )),
         ) else {
             return Vec::new();
         };
+        let text = |table: &str, id: u32| {
+            text.get(table)
+                .and_then(|ids| ids.get(&id.to_string()))
+                .cloned()
+                .unwrap_or_default()
+        };
+        let main: HashMap<u32, bool> = nodes.iter().map(|n| (n.key, n.main)).collect();
         // Worker sub-nodes are named for the job, like "Mining", so they take
-        // the name of the node they hang off.
-        let parents: HashMap<u32, &str> = nodes
+        // the name of the main node they are linked to.
+        let parents: HashMap<u32, u32> = waypoints
+            .links
             .iter()
-            .flat_map(|n| {
-                n.children.iter().flat_map(|c| &c.urns).filter_map(|urn| {
-                    let key = urn.rsplit(':').next()?.parse().ok()?;
-                    Some((key, n.name.as_str()))
-                })
+            .flat_map(|&(a, b)| [(a, b), (b, a)])
+            .filter(|(parent, child)| {
+                main.get(parent) == Some(&true) && main.get(child) == Some(&false)
             })
+            .map(|(parent, child)| (child, parent))
             .collect();
-        let territories: HashMap<&str, &str> = territories
+        let positions: HashMap<u32, [f32; 3]> = waypoints
+            .points
             .iter()
-            .map(|t| (t.urn.as_str(), t.name.as_str()))
+            .map(|p| (p.key, p.position))
             .collect();
         nodes
             .iter()
             .filter(|n| n.enabled && n.radius > 0.0)
             .filter_map(|n| {
-                let [x, _, z] = n.position?;
-                let territory = n.territory.as_deref().and_then(|urn| territories.get(urn));
+                // Red Battlefield has no waypoint, only its own anchor.
+                let anchor = (n.anchor != [0.0; 3]).then_some(n.anchor);
+                let [x, _, z] = positions.get(&n.key).copied().or(anchor)?;
+                // No node stores its territory, so it is the nearest region's.
+                let territory = regions
+                    .iter()
+                    .min_by(|a, b| {
+                        let d =
+                            |r: &Region| (r.position[0] - x).powi(2) + (r.position[2] - z).powi(2);
+                        d(a).total_cmp(&d(b))
+                    })
+                    .map_or_else(String::new, |r| text("12", r.territory.into()));
                 Some(Node {
                     place: Place {
-                        node: parents.get(&n.key).copied().unwrap_or(&n.name).to_string(),
-                        territory: territory.copied().unwrap_or_default().to_string(),
+                        node: text("29", parents.get(&n.key).copied().unwrap_or(n.key)),
+                        territory,
                     },
                     x,
                     z,

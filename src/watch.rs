@@ -1161,16 +1161,16 @@ impl<'a> Watcher<'a> {
 
     fn snapshot(&self, status: &Status) -> Snapshot {
         // A flagged row is one the user has something to do about.
-        let flagged = |label: &str, value: Option<(String, bool)>| {
+        let flagged = |label: String, value: Option<(String, bool)>| {
             value.map(|(value, attention)| Row {
-                label: label.to_string(),
+                label,
                 value,
                 attention,
             })
         };
-        let row = |label: &str, value: Option<String>| flagged(label, value.map(|v| (v, false)));
-        let group = |title: &str, rows: Vec<Option<Row>>| Group {
-            title: title.to_string(),
+        let row = |label: String, value: Option<String>| flagged(label, value.map(|v| (v, false)));
+        let group = |title: String, rows: Vec<Option<Row>>| Group {
+            title,
             rows: rows.into_iter().flatten().collect(),
         };
         let game = self.game.as_ref();

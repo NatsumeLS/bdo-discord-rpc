@@ -391,7 +391,11 @@ pub fn pill(background: Color, text_color: Color) -> button::Style {
     }
 }
 
-pub fn filled<'a, M: Clone + 'a>(c: Scheme, label: &'a str, message: Option<M>) -> Element<'a, M> {
+pub fn filled<'a, M: Clone + 'a>(
+    c: Scheme,
+    label: impl text::IntoFragment<'a>,
+    message: Option<M>,
+) -> Element<'a, M> {
     button(text(label).size(type_scale::LABEL_LARGE))
         .padding([10, 24])
         .on_press_maybe(message)
@@ -414,7 +418,11 @@ pub fn filled<'a, M: Clone + 'a>(c: Scheme, label: &'a str, message: Option<M>) 
         .into()
 }
 
-pub fn plain<'a, M: Clone + 'a>(c: Scheme, label: &'a str, message: Option<M>) -> Element<'a, M> {
+pub fn plain<'a, M: Clone + 'a>(
+    c: Scheme,
+    label: impl text::IntoFragment<'a>,
+    message: Option<M>,
+) -> Element<'a, M> {
     button(text(label).size(type_scale::LABEL_LARGE))
         .padding([10, 16])
         .on_press_maybe(message)
@@ -436,7 +444,7 @@ pub fn plain<'a, M: Clone + 'a>(c: Scheme, label: &'a str, message: Option<M>) -
 
 pub fn chip<'a, M: Clone + 'a>(
     c: Scheme,
-    label: &'a str,
+    label: impl text::IntoFragment<'a>,
     selected: bool,
     message: M,
 ) -> Element<'a, M> {

@@ -1,3 +1,4 @@
+use iced::widget::text::IntoFragment;
 use iced::widget::{
     button, column, container, row, slider, text, text_input, toggler, Column, Space,
 };
@@ -70,7 +71,7 @@ pub(super) fn divider(state: &SettingsWindow) -> Element<'_, Message> {
 
 pub(super) fn icon_button<'a>(
     state: &SettingsWindow,
-    label: &'a str,
+    label: impl IntoFragment<'a>,
     message: Option<Message>,
 ) -> Element<'a, Message> {
     let c = state.scheme();
@@ -99,7 +100,7 @@ pub(super) fn icon_button<'a>(
 
 pub(super) fn note<'a>(
     state: &SettingsWindow,
-    body: impl iced::widget::text::IntoFragment<'a>,
+    body: impl IntoFragment<'a>,
 ) -> Element<'a, Message> {
     let body = body.into_fragment();
     let lines = body
@@ -115,7 +116,7 @@ pub(super) fn note<'a>(
 
 pub(super) fn switch<'a>(
     state: &SettingsWindow,
-    label: &'a str,
+    label: impl IntoFragment<'a>,
     lens: Lens<bool>,
 ) -> Element<'a, Message> {
     switch_with(
@@ -129,7 +130,7 @@ pub(super) fn switch<'a>(
 
 pub(super) fn switch_with<'a>(
     state: &SettingsWindow,
-    label: &'a str,
+    label: impl IntoFragment<'a>,
     value: bool,
     on_toggle: impl Fn(bool) -> Message + 'a,
     dirty: bool,
@@ -159,9 +160,9 @@ pub(super) fn switch_with<'a>(
 
 pub(super) fn field<'a>(
     state: &SettingsWindow,
-    label: &'a str,
+    label: impl IntoFragment<'a>,
     lens: Lens<String>,
-    placeholder: &'a str,
+    placeholder: &str,
     check: fn(&str) -> Option<String>,
 ) -> Element<'a, Message> {
     let value = (lens.get)(&state.config);
@@ -178,9 +179,9 @@ pub(super) fn field<'a>(
 
 pub(super) fn field_with<'a>(
     state: &SettingsWindow,
-    label: &'a str,
+    label: impl IntoFragment<'a>,
     value: &str,
-    placeholder: &'a str,
+    placeholder: &str,
     on_input: impl Fn(String) -> Message + 'a,
     dirty: bool,
     error: Option<String>,
@@ -210,7 +211,7 @@ pub(super) fn field_with<'a>(
 
 pub(super) fn dial<'a>(
     state: &SettingsWindow,
-    label: &'a str,
+    label: impl IntoFragment<'a>,
     lens: Lens<u64>,
     range: std::ops::RangeInclusive<u64>,
 ) -> Element<'a, Message> {

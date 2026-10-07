@@ -23,7 +23,7 @@ pub fn from_flag(arg: &str) -> Option<Table> {
         .find(|&table| flag(table) == arg)
 }
 
-fn title(table: Table) -> &'static str {
+fn title(table: Table) -> String {
     match table {
         Table::Servers => tr("prompt.new_server"),
         Table::Characters => tr("prompt.new_character"),
@@ -38,14 +38,14 @@ fn intro(table: Table, key: &str) -> String {
     .into_owned()
 }
 
-pub fn explain(table: Table) -> &'static str {
+pub fn explain(table: Table) -> String {
     match table {
         Table::Servers => tr("names.server_explain"),
         Table::Characters => tr("names.character_explain"),
     }
 }
 
-pub fn hint(table: Table) -> &'static str {
+pub fn hint(table: Table) -> String {
     match table {
         Table::Servers => tr("names.server_name"),
         Table::Characters => tr("names.character_name"),
@@ -108,8 +108,8 @@ pub fn run(table: Table, key: Option<String>, service: Option<String>) -> i32 {
     }
 
     if !crate::win::claim_instance(crate::win::PROMPT) {
-        crate::win::focus_window(title(Table::Servers));
-        crate::win::focus_window(title(Table::Characters));
+        crate::win::focus_window(&title(Table::Servers));
+        crate::win::focus_window(&title(Table::Characters));
         return 0;
     }
 
@@ -164,7 +164,7 @@ pub fn run(table: Table, key: Option<String>, service: Option<String>) -> i32 {
     };
 
     match iced::application(boot, update, view)
-        .title(title(table))
+        .title(move |_: &Prompt| title(table))
         .window(window)
         .theme(|state: &Prompt| m3::theme(&state.config))
         .run()
@@ -194,8 +194,7 @@ struct Prompt {
 impl Prompt {
     fn save_name(&mut self) -> Result<(), String> {
         // Re-read, or a Save in the settings window since this opened is lost.
-        self.config =
-            config::load_or_create(&self.path).map_err(|_| tr("prompt.unreadable").to_string())?;
+        self.config = config::load_or_create(&self.path).map_err(|_| tr("prompt.unreadable"))?;
         self.table
             .entries_mut(&mut self.config)
             .insert(self.key.clone(), self.name.trim().to_string());
@@ -241,10 +240,10 @@ fn view(state: &Prompt) -> Element<'_, Message> {
     let reason = state
         .error
         .clone()
-        .or_else(|| blank.then(|| tr("prompt.blank").to_string()));
+        .or_else(|| blank.then(|| tr("prompt.blank")));
     let wrong = reason.is_some();
 
-    let field = text_input(hint(state.table), &state.name)
+    let field = text_input(&hint(state.table), &state.name)
         .id(INPUT)
         .on_input(Message::NameChanged)
         .on_submit(Message::Submit)

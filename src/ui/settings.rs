@@ -197,7 +197,7 @@ impl Page {
         }
     }
 
-    fn label(self) -> &'static str {
+    fn label(self) -> String {
         tr(match self {
             Page::Overview => "page.overview",
             Page::General => "page.general",
@@ -285,7 +285,7 @@ impl PhaseField {
         PhaseField::SecondButtonUrl,
     ];
 
-    fn label(self) -> &'static str {
+    fn label(self) -> String {
         tr(match self {
             PhaseField::Details => "phases.details",
             PhaseField::State => "phases.state",
@@ -300,7 +300,7 @@ impl PhaseField {
         })
     }
 
-    fn hint(self, cfg: &PhaseConfig) -> &'static str {
+    fn hint(self, cfg: &PhaseConfig) -> String {
         match self {
             PhaseField::Details => tr("phases.hint_details"),
             PhaseField::State => tr("phases.hint_state"),
@@ -386,18 +386,18 @@ impl SettingsWindow {
         };
 
         if self.unreadable {
-            return Some(tr("actions.unreadable").to_string());
+            return Some(tr("actions.unreadable"));
         }
 
-        named(tr("theme.accent"), check::accent(&c.theme.accent))
-            .or_else(|| named(tr("general.app_id"), check::app_id(&c.client_id)))
-            .or_else(|| named(tr("display.game_icon"), check::image(&c.display.game_icon)))
-            .or_else(|| named(tr("profile.url"), check::url(&c.profile.url)))
-            .or_else(|| named(tr("profile.search"), check::url(&c.profile.search_url)))
-            .or_else(|| named(tr("paths.game"), check::game_folder(&c.paths.game_root)))
+        named(&tr("theme.accent"), check::accent(&c.theme.accent))
+            .or_else(|| named(&tr("general.app_id"), check::app_id(&c.client_id)))
+            .or_else(|| named(&tr("display.game_icon"), check::image(&c.display.game_icon)))
+            .or_else(|| named(&tr("profile.url"), check::url(&c.profile.url)))
+            .or_else(|| named(&tr("profile.search"), check::url(&c.profile.search_url)))
+            .or_else(|| named(&tr("paths.game"), check::game_folder(&c.paths.game_root)))
             .or_else(|| {
                 named(
-                    tr("paths.user_data"),
+                    &tr("paths.user_data"),
                     check::user_data(&c.paths.user_data_dir),
                 )
             })
@@ -449,7 +449,7 @@ impl SettingsWindow {
             .then(|| self.path.with_extension("toml.broken"));
         if let Some(kept) = &kept {
             if self.path.exists() && std::fs::rename(&self.path, kept).is_err() {
-                self.message = Some((tr("actions.set_aside_failed").into(), false));
+                self.message = Some((tr("actions.set_aside_failed"), false));
                 return;
             }
         }
@@ -465,7 +465,7 @@ impl SettingsWindow {
                         t!("actions.saved_kept", file = name.to_string_lossy()).into_owned(),
                         true,
                     )),
-                    None => Some((tr("actions.saved").into(), true)),
+                    None => Some((tr("actions.saved"), true)),
                 }
             }
             Err(e) => Some((e, false)),
@@ -505,7 +505,7 @@ impl SettingsWindow {
             &disk.characters,
         );
         self.saved = disk;
-        self.message = Some((tr("actions.changed_on_disk").into(), false));
+        self.message = Some((tr("actions.changed_on_disk"), false));
     }
 }
 
@@ -628,7 +628,7 @@ fn update(state: &mut SettingsWindow, message: Message) -> Task<Message> {
         Message::OpenFolder => crate::win::show_in_folder(&config::log_path()),
         Message::CopyLog => {
             task = iced::clipboard::write(state.log.clone());
-            state.message = Some((tr("log.copied").into(), true));
+            state.message = Some((tr("log.copied"), true));
         }
         Message::Resized(size) => state.size = size,
         // The shell runs whatever it is given, and the profile URL comes from a file.
@@ -796,7 +796,7 @@ fn status_bar(state: &SettingsWindow) -> Element<'_, Message> {
         None => (
             c.outline,
             c.on_surface_variant,
-            tr("status.tray_not_running").to_string(),
+            tr("status.tray_not_running"),
         ),
     };
 

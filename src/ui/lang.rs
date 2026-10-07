@@ -1,6 +1,3 @@
-use std::collections::HashMap;
-use std::sync::Mutex;
-
 use windows_sys::Win32::Globalization::{GetUserPreferredUILanguages, MUI_LANGUAGE_NAME};
 
 use crate::config::Config;
@@ -74,26 +71,10 @@ fn windows_languages() -> Vec<String> {
     }
 }
 
-pub fn tr(key: &str) -> &'static str {
-    cached(&rust_i18n::locale(), key)
+pub fn tr(key: &str) -> String {
+    rust_i18n::t!(key).into_owned()
 }
 
-pub fn name(locale: &str) -> &'static str {
-    cached(locale, "language.name")
-}
-
-// Leaked once per key and language, so widgets can hold a `&'static str`.
-fn cached(locale: &str, key: &str) -> &'static str {
-    static CACHE: Mutex<Option<HashMap<(String, String), &'static str>>> = Mutex::new(None);
-    let mut cache = CACHE.lock().unwrap_or_else(|e| e.into_inner());
-    cache
-        .get_or_insert_with(HashMap::new)
-        .entry((locale.to_string(), key.to_string()))
-        .or_insert_with(|| {
-            Box::leak(
-                rust_i18n::t!(key, locale = locale)
-                    .into_owned()
-                    .into_boxed_str(),
-            )
-        })
+pub fn name(locale: &str) -> String {
+    rust_i18n::t!("language.name", locale = locale).into_owned()
 }

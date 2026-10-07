@@ -1,5 +1,6 @@
 use std::collections::BTreeSet;
 
+use iced::widget::text::IntoFragment;
 use iced::widget::{
     column, container, rich_text, row, scrollable, slider, span, text, text_input, Space,
 };
@@ -70,7 +71,7 @@ pub(super) fn about(state: &SettingsWindow) -> Element<'_, Message> {
     .align_y(iced::Alignment::Center);
 
     let mut built = column![heading(state, tr("about.built_with"))].spacing(6);
-    for (name, license) in LIBRARIES {
+    for &(name, license) in LIBRARIES {
         built = built.push(pair(state, name, license.to_string()));
     }
 
@@ -113,7 +114,7 @@ pub(super) fn placeholders(state: &SettingsWindow) -> Element<'_, Message> {
             skill = tr(&format!("life.{name}"))
         )
         .into_owned(),
-        None => tr(&format!("placeholders.{name}")).to_string(),
+        None => tr(&format!("placeholders.{name}")),
     };
 
     let mut page = column![note(
@@ -349,21 +350,25 @@ fn hue_slider(state: &SettingsWindow) -> Element<'_, Message> {
     .into()
 }
 
-fn heading<'a>(state: &SettingsWindow, label: &'a str) -> Element<'a, Message> {
+fn heading<'a>(state: &SettingsWindow, label: impl IntoFragment<'a>) -> Element<'a, Message> {
     text(label)
         .size(type_scale::TITLE_MEDIUM)
         .color(state.scheme().primary)
         .into()
 }
 
-fn pair<'a>(state: &SettingsWindow, label: &'a str, value: String) -> Element<'a, Message> {
+fn pair<'a>(
+    state: &SettingsWindow,
+    label: impl IntoFragment<'a>,
+    value: String,
+) -> Element<'a, Message> {
     flagged_pair(state, label, value, false)
 }
 
 // A value the user has something to do about is shown in the error color.
 fn flagged_pair<'a>(
     state: &SettingsWindow,
-    label: &'a str,
+    label: impl IntoFragment<'a>,
     value: String,
     attention: bool,
 ) -> Element<'a, Message> {
@@ -423,17 +428,17 @@ const LINE: f32 = 24.0;
 const BLOCK: f32 = 72.0;
 
 // A blank field shows the value it would use, or its hint when nothing was found.
-fn detected<'a>(
-    state: &'a SettingsWindow,
+fn detected(
+    state: &SettingsWindow,
     value: fn(&crate::watch::Detected) -> &Option<String>,
-    hint: &'a str,
-) -> &'a str {
+    hint: &str,
+) -> String {
     state
         .tray
         .snapshot
         .as_ref()
-        .and_then(|s| value(&s.detected).as_deref())
-        .unwrap_or(hint)
+        .and_then(|s| value(&s.detected).clone())
+        .unwrap_or_else(|| tr(hint))
 }
 // One label and value row on Overview and the heading above a group of them.
 const PAIR_ROW: f32 = 24.0;
@@ -453,7 +458,7 @@ pub(super) fn general(state: &SettingsWindow) -> Element<'_, Message> {
                     state,
                     tr("general.app_id"),
                     lens!(client_id),
-                    tr("general.app_id_hint"),
+                    &tr("general.app_id_hint"),
                     check::app_id,
                 ),
             ),
@@ -517,7 +522,7 @@ pub(super) fn identity(state: &SettingsWindow) -> Element<'_, Message> {
                     state,
                     tr("identity.family"),
                     lens!(identity.family_name),
-                    detected(state, |d| &d.family, tr("identity.family_hint")),
+                    &detected(state, |d| &d.family, "identity.family_hint"),
                     |_| None,
                 ),
             ),
@@ -527,7 +532,7 @@ pub(super) fn identity(state: &SettingsWindow) -> Element<'_, Message> {
                     state,
                     tr("identity.region"),
                     lens!(identity.region_name),
-                    detected(state, |d| &d.region, tr("identity.region_hint")),
+                    &detected(state, |d| &d.region, "identity.region_hint"),
                     |_| None,
                 ),
             ),
@@ -554,7 +559,7 @@ pub(super) fn display(state: &SettingsWindow) -> Element<'_, Message> {
                     state,
                     tr("display.game_icon"),
                     lens!(display.game_icon),
-                    tr("display.game_icon_hint"),
+                    &tr("display.game_icon_hint"),
                     check::image,
                 ),
             ),
@@ -564,7 +569,7 @@ pub(super) fn display(state: &SettingsWindow) -> Element<'_, Message> {
                     state,
                     tr("display.unknown"),
                     lens!(display.unknown),
-                    tr("display.unknown_hint"),
+                    &tr("display.unknown_hint"),
                     |_| None,
                 ),
             ),
@@ -587,7 +592,7 @@ pub(super) fn profile(state: &SettingsWindow) -> Element<'_, Message> {
                     state,
                     tr("profile.url"),
                     lens!(profile.url),
-                    detected(state, |d| &d.profile_url, tr("profile.url_hint")),
+                    &detected(state, |d| &d.profile_url, "profile.url_hint"),
                     check::url,
                 ),
             ),
@@ -597,7 +602,7 @@ pub(super) fn profile(state: &SettingsWindow) -> Element<'_, Message> {
                     state,
                     tr("profile.search"),
                     lens!(profile.search_url),
-                    detected(state, |d| &d.search_url, tr("profile.search_hint")),
+                    &detected(state, |d| &d.search_url, "profile.search_hint"),
                     check::url,
                 ),
             ),
@@ -625,7 +630,7 @@ pub(super) fn paths(state: &SettingsWindow) -> Element<'_, Message> {
                     state,
                     tr("paths.game"),
                     lens!(paths.game_root),
-                    detected(state, |d| &d.game_root, tr("paths.game_hint")),
+                    &detected(state, |d| &d.game_root, "paths.game_hint"),
                     check::game_folder,
                 ),
             ),
@@ -635,7 +640,7 @@ pub(super) fn paths(state: &SettingsWindow) -> Element<'_, Message> {
                     state,
                     tr("paths.user_data"),
                     lens!(paths.user_data_dir),
-                    detected(state, |d| &d.user_data_dir, tr("paths.user_data_hint")),
+                    &detected(state, |d| &d.user_data_dir, "paths.user_data_hint"),
                     check::user_data,
                 ),
             ),
@@ -728,7 +733,7 @@ pub(super) fn names(state: &SettingsWindow, table: Table) -> Element<'_, Message
     let add = row![
         m3::clearable(
             c,
-            text_input(key_hint, &pending.0)
+            text_input(&key_hint, &pending.0)
                 .on_input(move |v| Message::TablePendingKey(table, v))
                 .size(type_scale::BODY_MEDIUM)
                 .padding(Padding::from([8, 12]).right(12.0 + m3::CLEAR_ROOM))
@@ -738,7 +743,7 @@ pub(super) fn names(state: &SettingsWindow, table: Table) -> Element<'_, Message
         ),
         m3::clearable(
             c,
-            text_input(prompt::hint(table), &pending.1)
+            text_input(&prompt::hint(table), &pending.1)
                 .on_input(move |v| Message::TablePendingName(table, v))
                 .size(type_scale::BODY_MEDIUM)
                 .padding(Padding::from([8, 12]).right(12.0 + m3::CLEAR_ROOM))
@@ -828,7 +833,7 @@ pub(super) fn phases(state: &SettingsWindow) -> Element<'_, Message> {
                     state,
                     which.label(),
                     value,
-                    which.hint(&cfg),
+                    &which.hint(&cfg),
                     move |v| Message::PhaseText(which, v),
                     value != which.get(&saved),
                     which.error(value),

@@ -66,7 +66,7 @@ pub fn label(phase: Option<Phase>) -> &'static str {
 }
 
 // `label` stays English for the log. This is the one the windows and tray show.
-pub fn display(phase: Option<Phase>) -> &'static str {
+pub fn display(phase: Option<Phase>) -> String {
     let key = phase.map_or("unknown", Phase::key);
     crate::ui::lang::tr(&format!("phase.{key}"))
 }

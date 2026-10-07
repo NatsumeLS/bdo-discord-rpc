@@ -20,8 +20,6 @@ pub struct Config {
     pub enabled: bool,
     pub language: String,
     pub client_id: String,
-    pub debounce_seconds: u64,
-    pub poll_seconds: u64,
     pub prompt_unknown_server: bool,
     pub prompt_unknown_character: bool,
 
@@ -189,8 +187,6 @@ impl Default for Config {
             enabled: true,
             language: "auto".into(),
             client_id: DEFAULT_CLIENT_ID.into(),
-            debounce_seconds: 3,
-            poll_seconds: 1,
             prompt_unknown_server: true,
             prompt_unknown_character: true,
             identity: Identity::default(),
@@ -302,8 +298,6 @@ pub fn load_or_create(path: &Path) -> Result<Config, String> {
             .or_insert_with(|| phase_defaults(phase));
     }
 
-    config.debounce_seconds = config.debounce_seconds.min(60);
-    config.poll_seconds = config.poll_seconds.clamp(1, 60);
     config.profile.refresh_minutes = config.profile.refresh_minutes.clamp(15, 1440);
 
     Ok(config)

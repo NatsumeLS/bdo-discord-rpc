@@ -21,6 +21,9 @@ use crate::ui::tray::Health;
 use crate::win::{self, log};
 use rust_i18n::t;
 
+const POLL: Duration = Duration::from_secs(1);
+const DEBOUNCE: Duration = Duration::from_secs(3);
+
 const CONNECT_MIN_BACKOFF: u64 = 5;
 const CONNECT_MAX_BACKOFF: u64 = 60;
 
@@ -432,8 +435,7 @@ pub fn watch(shared: &Shared) -> i32 {
     while !shared.quit.load(Ordering::Relaxed) {
         let status = watcher.tick();
         watcher.publish(status);
-        let poll = Duration::from_secs(watcher.config.poll_seconds);
-        watcher.reload_asked = win::sleep_until_config_changes(poll);
+        watcher.reload_asked = win::sleep_until_config_changes(POLL);
     }
 
     log("Stopped");
@@ -777,7 +779,7 @@ impl<'a> Watcher<'a> {
             s.observed_since = Instant::now();
         }
         let first_reading = s.stable.phase.is_none() && s.state.phase.is_some();
-        if first_reading || s.observed_since.elapsed().as_secs() >= self.config.debounce_seconds {
+        if first_reading || s.observed_since.elapsed() >= DEBOUNCE {
             if s.stable.phase != s.state.phase {
                 log(&format!("Phase: {}", phase::label(s.state.phase)));
             }

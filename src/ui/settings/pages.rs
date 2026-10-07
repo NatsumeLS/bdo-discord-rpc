@@ -476,13 +476,6 @@ pub(super) fn general(state: &SettingsWindow, fit: f32) -> Element<'_, Message> 
                 &tr("general.app_id_hint"),
                 check::app_id,
             ),
-            dial(
-                state,
-                tr("general.debounce"),
-                lens!(debounce_seconds),
-                0..=60,
-            ),
-            dial(state, tr("general.poll"), lens!(poll_seconds), 1..=60),
             switch(
                 state,
                 tr("general.ask_server"),

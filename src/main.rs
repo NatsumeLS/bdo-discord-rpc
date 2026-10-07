@@ -158,7 +158,7 @@ fn run() -> i32 {
         if let Some(latest) = latest {
             if latest != shown {
                 shown = latest;
-                tray.set_status(shown.health, &shown.line);
+                tray.set_status(shown.health, &shown.tooltip);
             }
         }
 

@@ -67,14 +67,19 @@ impl Backoff {
 #[derive(Clone, PartialEq, Eq)]
 pub struct Status {
     pub health: Health,
+    /// The settings window's status bar.
     pub line: String,
+    /// The tray's hover text, the phase alone once live.
+    pub tooltip: String,
 }
 
 impl Status {
     fn new(health: Health, line: impl Into<String>) -> Self {
+        let line = line.into();
         Status {
             health,
-            line: line.into(),
+            tooltip: line.clone(),
+            line,
         }
     }
 }
@@ -554,7 +559,10 @@ impl<'a> Watcher<'a> {
         self.push();
 
         match self.link.client {
-            Some(_) => Status::new(Health::Live, self.status_line()),
+            Some(_) => Status {
+                tooltip: phase::display(self.session.stable.phase),
+                ..Status::new(Health::Live, self.status_line())
+            },
             None => Status::new(Health::Waiting, tr("status.discord_not_connected")),
         }
     }

@@ -1287,7 +1287,7 @@ impl<'a> Watcher<'a> {
                         ),
                         row(
                             tr("overview.family_created"),
-                            profile.and_then(|p| p.created.clone()),
+                            profile.and_then(Profile::created_local),
                         ),
                         row(tr("overview.guild"), profile.and_then(|p| p.guild.clone())),
                         row(

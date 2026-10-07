@@ -2,7 +2,7 @@ use std::collections::BTreeMap;
 use std::path::Path;
 use std::time::Duration;
 
-use chrono::Local;
+use chrono::{FixedOffset, Local, NaiveDateTime};
 use scraper::selectable::Selectable;
 use scraper::{Html, Selector};
 use serde::{Deserialize, Serialize};
@@ -84,6 +84,24 @@ impl Profile {
             _ => created,
         };
         Some(date.trim_end_matches(',').to_string())
+    }
+
+    // "Nov 10, 2023, 18:53 (UTC+8)" in local time like the Overview's other
+    // stamps, or as written when it is some other region's format.
+    pub fn created_local(&self) -> Option<String> {
+        let created = self.created.as_deref()?;
+        let local = created.split_once(" (UTC").and_then(|(when, zone)| {
+            let hours: i32 = zone.trim_end_matches(')').parse().ok()?;
+            let offset = FixedOffset::east_opt(hours * 3600)?;
+            let at = NaiveDateTime::parse_from_str(when, "%b %d, %Y, %H:%M").ok()?;
+            let at = at.and_local_timezone(offset).single()?;
+            Some(
+                at.with_timezone(&Local)
+                    .format("%Y-%m-%d %H:%M")
+                    .to_string(),
+            )
+        });
+        Some(local.unwrap_or_else(|| created.to_string()))
     }
 }
 

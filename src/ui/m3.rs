@@ -493,7 +493,21 @@ pub fn chip<'a, M: Clone + 'a>(
     selected: bool,
     message: M,
 ) -> Element<'a, M> {
-    button(text(label).size(type_scale::LABEL_LARGE))
+    chip_with(
+        c,
+        text(label).size(type_scale::LABEL_LARGE).into(),
+        selected,
+        message,
+    )
+}
+
+pub fn chip_with<'a, M: Clone + 'a>(
+    c: Scheme,
+    content: Element<'a, M>,
+    selected: bool,
+    message: M,
+) -> Element<'a, M> {
+    button(content)
         .padding([8, 16])
         .on_press(message)
         .style(move |_theme, status| {

@@ -2,7 +2,7 @@
 name = "bdo-discord-rpc"
 version = "0.2.0"
 edition = "2021"
-description = "Discord Rich Presence for Black Desert, driven by the files the client already writes"
+description = "Discord Rich Presence for Black Desert, read from the game's files and network traffic"
 license = "MIT"
 repository = "https://github.com/NatsumeLS/bdo-discord-rpc"
 authors = ["NatsumeLS"]

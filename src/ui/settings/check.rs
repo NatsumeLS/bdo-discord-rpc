@@ -41,8 +41,7 @@ pub fn user_data(value: &str) -> Option<String> {
 
 pub fn url(value: &str) -> Option<String> {
     let value = value.trim();
-    (!value.is_empty() && !value.starts_with("http://") && !value.starts_with("https://"))
-        .then(|| t!("check.https").into_owned())
+    (!value.is_empty() && !value.starts_with("https://")).then(|| t!("check.https").into_owned())
 }
 
 pub fn image(value: &str) -> Option<String> {
@@ -51,7 +50,7 @@ pub fn image(value: &str) -> Option<String> {
         return None;
     }
     if !value.starts_with("https://") {
-        return Some(t!("check.image_https").into_owned());
+        return Some(t!("check.https").into_owned());
     }
     let path = value.split(['?', '#']).next().unwrap_or(value);
     let extension = path

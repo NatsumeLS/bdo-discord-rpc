@@ -169,6 +169,7 @@ pub(super) fn placeholders(state: &SettingsWindow) -> Element<'_, Message> {
                     text(value)
                         .size(type_scale::BODY_MEDIUM)
                         .color(c.on_surface)
+                        .wrapping(text::Wrapping::WordOrGlyph)
                         .width(Length::Fill),
                 ]
                 .spacing(12),
@@ -289,15 +290,21 @@ pub(super) fn theme_page(state: &SettingsWindow) -> Element<'_, Message> {
             "F08080",
             check::accent,
         ),
-        hue_slider(state),
+        // Unmarked, only lined up with the controls that carry a dot.
+        marked(c, hue_slider(state), false),
         divider(state),
-        column![
-            text(tr("theme.preview"))
-                .size(type_scale::BODY_MEDIUM)
-                .color(c.on_surface_variant),
-            palette,
-        ]
-        .spacing(8),
+        marked(
+            c,
+            column![
+                text(tr("theme.preview"))
+                    .size(type_scale::BODY_MEDIUM)
+                    .color(c.on_surface_variant),
+                palette,
+            ]
+            .spacing(8)
+            .into(),
+            false,
+        ),
     ]
     .spacing(18)
     .into()
@@ -410,7 +417,6 @@ fn labeled<'a>(
         value,
     ]
     .spacing(12)
-    .align_y(iced::Alignment::Center)
     .into()
 }
 
@@ -684,6 +690,7 @@ pub(super) fn names(state: &SettingsWindow, table: Table) -> Element<'_, Message
     let ready = !pending.0.trim().is_empty() && !pending.1.trim().is_empty() && !wrong_key;
 
     let add = row![
+        dot(c, false),
         m3::clearable(
             c,
             text_input(&key_hint, &pending.0)
@@ -757,9 +764,16 @@ pub(super) fn phases(state: &SettingsWindow, fit: f32) -> Element<'_, Message> {
     let saved = state.saved.phase(state.phase);
 
     let chips = wrapped(Phase::ALL.map(|phase| {
-        m3::chip(
+        let dirty = state.config.phase(phase) != state.saved.phase(phase);
+        m3::chip_with(
             c,
-            crate::phase::display(Some(phase)),
+            row![
+                text(crate::phase::display(Some(phase))).size(type_scale::LABEL_LARGE),
+                dot(c, dirty),
+            ]
+            .spacing(8)
+            .align_y(iced::Alignment::Center)
+            .into(),
             phase == state.phase,
             Message::SelectPhase(phase),
         )

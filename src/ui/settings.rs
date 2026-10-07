@@ -562,7 +562,11 @@ fn update(state: &mut SettingsWindow, message: Message) -> Task<Message> {
                 state.message = None;
             }
             Action::Reset => {
-                state.config = Config::default();
+                state.config = Config {
+                    servers: std::mem::take(&mut state.config.servers),
+                    characters: std::mem::take(&mut state.config.characters),
+                    ..Config::default()
+                };
                 state.unreadable = false;
             }
         },

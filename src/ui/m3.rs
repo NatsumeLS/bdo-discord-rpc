@@ -202,8 +202,10 @@ pub struct Scheme {
     pub surface: Color,
     pub on_surface: Color,
     pub on_surface_variant: Color,
+    pub surface_container_low: Color,
     pub surface_container: Color,
     pub surface_container_high: Color,
+    pub surface_container_highest: Color,
     pub outline: Color,
     pub outline_variant: Color,
     pub error: Color,
@@ -235,8 +237,10 @@ impl Scheme {
             surface: role(Roles::surface()),
             on_surface: role(Roles::on_surface()),
             on_surface_variant: role(Roles::on_surface_variant()),
+            surface_container_low: role(Roles::surface_container_low()),
             surface_container: role(Roles::surface_container()),
             surface_container_high: role(Roles::surface_container_high()),
+            surface_container_highest: role(Roles::surface_container_highest()),
             outline: role(Roles::outline()),
             outline_variant: role(Roles::outline_variant()),
             // A tone of our own: M3's dark `error` is a pale salmon.
@@ -344,8 +348,16 @@ pub fn hsv_color(hue: f32, saturation: f32, value: f32) -> Color {
 pub fn layer(status: button::Status) -> f32 {
     match status {
         button::Status::Hovered => 0.08,
-        button::Status::Pressed => 0.12,
+        button::Status::Pressed => 0.10,
         _ => 0.0,
+    }
+}
+
+// M3 disabled content and containers: on surface at 38% and 12%.
+fn faded(c: Scheme, alpha: f32) -> Color {
+    Color {
+        a: alpha,
+        ..c.on_surface
     }
 }
 
@@ -374,7 +386,7 @@ pub fn field_style(c: Scheme, status: text_input::Status, wrong: bool) -> text_i
             radius: shape::EXTRA_SMALL.into(),
         },
         icon: c.on_surface_variant,
-        placeholder: c.outline,
+        placeholder: c.on_surface_variant,
         value: if wrong { c.error } else { c.on_surface },
         selection: c.primary_container,
     }
@@ -401,10 +413,11 @@ pub fn filled<'a, M: Clone + 'a>(
         .on_press_maybe(message)
         .style(move |_theme, status| {
             if matches!(status, button::Status::Disabled) {
-                return pill(mix(c.on_surface, c.surface, 0.88), c.on_surface_variant);
+                return pill(faded(c, 0.12), faded(c, 0.38));
             }
-            button::Style {
-                shadow: Shadow {
+            // Level 0 at rest, level 1 under the pointer.
+            let shadow = match status {
+                button::Status::Hovered => Shadow {
                     color: Color {
                         a: 0.28,
                         ..Color::BLACK
@@ -412,6 +425,10 @@ pub fn filled<'a, M: Clone + 'a>(
                     offset: Vector::new(0.0, 1.0),
                     blur_radius: 3.0,
                 },
+                _ => Shadow::default(),
+            };
+            button::Style {
+                shadow,
                 ..pill(mix(c.primary, c.on_primary, layer(status)), c.on_primary)
             }
         })
@@ -424,7 +441,7 @@ pub fn plain<'a, M: Clone + 'a>(
     message: Option<M>,
 ) -> Element<'a, M> {
     button(text(label).size(type_scale::LABEL_LARGE))
-        .padding([10, 16])
+        .padding([10, 12])
         .on_press_maybe(message)
         .style(move |_theme, status| {
             pill(
@@ -433,11 +450,39 @@ pub fn plain<'a, M: Clone + 'a>(
                     ..c.primary
                 },
                 if matches!(status, button::Status::Disabled) {
-                    c.on_surface_variant
+                    faded(c, 0.38)
                 } else {
                     c.primary
                 },
             )
+        })
+        .into()
+}
+
+pub fn outlined<'a, M: Clone + 'a>(
+    c: Scheme,
+    label: impl text::IntoFragment<'a>,
+    message: Option<M>,
+) -> Element<'a, M> {
+    button(text(label).size(type_scale::LABEL_LARGE))
+        .padding([8, 16])
+        .on_press_maybe(message)
+        .style(move |_theme, status| {
+            let (fg, outline) = if matches!(status, button::Status::Disabled) {
+                (faded(c, 0.38), faded(c, 0.12))
+            } else {
+                (c.primary, c.outline)
+            };
+            button::Style {
+                border: border::rounded(shape::FULL).color(outline).width(1.0),
+                ..pill(
+                    Color {
+                        a: layer(status),
+                        ..c.primary
+                    },
+                    fg,
+                )
+            }
         })
         .into()
 }

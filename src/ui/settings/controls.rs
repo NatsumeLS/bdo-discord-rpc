@@ -1,7 +1,7 @@
 use iced::advanced::widget::{Operation, Tree, Widget};
 use iced::advanced::{layout, mouse, overlay, renderer, Clipboard, Layout, Shell};
 use iced::widget::text::IntoFragment;
-use iced::widget::{button, column, container, row, slider, text, text_input, toggler, Space};
+use iced::widget::{column, container, row, slider, text, text_input, toggler, Space};
 use iced::{border, Background, Color, Element, Event, Length, Padding, Point, Rectangle, Size};
 
 use super::{Lens, Message, SettingsWindow, COLUMN_GAP, COLUMN_WIDTH};
@@ -273,35 +273,6 @@ pub(super) fn divider(state: &SettingsWindow) -> Element<'_, Message> {
         .into()
 }
 
-pub(super) fn icon_button<'a>(
-    state: &SettingsWindow,
-    label: impl IntoFragment<'a>,
-    message: Option<Message>,
-) -> Element<'a, Message> {
-    let c = state.scheme();
-    button(text(label).size(type_scale::LABEL_LARGE))
-        .padding([8, 16])
-        .on_press_maybe(message)
-        .style(move |_t, status| {
-            let (fg, outline) = if matches!(status, button::Status::Disabled) {
-                (c.on_surface_variant, c.outline_variant)
-            } else {
-                (c.primary, c.outline)
-            };
-            button::Style {
-                border: border::rounded(shape::FULL).color(outline).width(1.0),
-                ..m3::pill(
-                    Color {
-                        a: m3::layer(status),
-                        ..c.primary
-                    },
-                    fg,
-                )
-            }
-        })
-        .into()
-}
-
 pub(super) fn note<'a>(
     state: &SettingsWindow,
     body: impl IntoFragment<'a>,
@@ -348,7 +319,7 @@ pub(super) fn switch_with<'a>(
             background: Background::Color(if value {
                 c.primary
             } else {
-                c.surface_container_high
+                c.surface_container_highest
             }),
             background_border_width: if value { 0.0 } else { 2.0 },
             background_border_color: c.outline,
@@ -441,7 +412,7 @@ pub(super) fn dial<'a>(
             rail: slider::Rail {
                 backgrounds: (
                     Background::Color(c.primary),
-                    Background::Color(c.surface_container_high),
+                    Background::Color(c.secondary_container),
                 ),
                 width: 6.0,
                 border: border::rounded(shape::FULL),

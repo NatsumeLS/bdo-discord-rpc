@@ -7,7 +7,7 @@ use iced::widget::{
 use iced::{border, gradient, Background, Color, Element, Length, Padding, Radians};
 
 use super::controls::{
-    dial, divider, dot, field, field_with, icon_button, marked, note, switch, switch_with, Flow,
+    dial, divider, dot, field, field_with, marked, note, switch, switch_with, Flow,
 };
 use super::{check, Message, PhaseField, SettingsWindow, KEY_WIDTH};
 use crate::config::{self, Table};
@@ -58,8 +58,8 @@ pub(super) fn about(state: &SettingsWindow) -> Element<'_, Message> {
             text(env!("CARGO_PKG_AUTHORS"))
                 .size(type_scale::TITLE_MEDIUM)
                 .color(c.on_surface),
-            icon_button(
-                state,
+            m3::outlined(
+                c,
                 "github.com/NatsumeLS",
                 Some(Message::OpenUrl("https://github.com/NatsumeLS".into())),
             ),
@@ -184,8 +184,8 @@ pub(super) fn overview(state: &SettingsWindow, fit: f32) -> Element<'_, Message>
     let groups = Flow::new(fit, groups).spacing(20.0);
     match snapshot.detected.profile_url.clone() {
         Some(url) => groups
-            .head(icon_button(
-                state,
+            .head(m3::outlined(
+                state.scheme(),
                 tr("overview.open_profile"),
                 Some(Message::OpenUrl(url)),
             ))
@@ -611,8 +611,8 @@ pub(super) fn names(state: &SettingsWindow, table: Table) -> Element<'_, Message
                         .color(c.outline)]
                     .size(type_scale::BODY_MEDIUM)
                     .width(Length::Fill),
-                    icon_button(
-                        state,
+                    m3::outlined(
+                        c,
                         tr("names.restore"),
                         Some(Message::TableRestore(table, key.clone()))
                     ),
@@ -642,8 +642,8 @@ pub(super) fn names(state: &SettingsWindow, table: Table) -> Element<'_, Message
                         String::new()
                     )),
                 ),
-                icon_button(
-                    state,
+                m3::outlined(
+                    c,
                     tr("names.remove"),
                     Some(Message::TableRemove(table, key.clone()))
                 ),
@@ -680,8 +680,8 @@ pub(super) fn names(state: &SettingsWindow, table: Table) -> Element<'_, Message
                 .style(move |_t, status| m3::field_style(c, status, false)),
             (!pending.1.is_empty()).then(|| Message::TablePendingName(table, String::new())),
         ),
-        icon_button(
-            state,
+        m3::outlined(
+            c,
             tr("names.add"),
             ready.then_some(Message::TableAdd(table))
         ),
@@ -848,9 +848,9 @@ pub(super) fn log_page(state: &SettingsWindow) -> Element<'_, Message> {
     column![
         body,
         row![
-            icon_button(state, tr("log.open_folder"), Some(Message::OpenFolder)),
-            icon_button(
-                state,
+            m3::outlined(c, tr("log.open_folder"), Some(Message::OpenFolder)),
+            m3::outlined(
+                c,
                 tr("log.copy"),
                 (!state.log.is_empty()).then_some(Message::CopyLog)
             ),

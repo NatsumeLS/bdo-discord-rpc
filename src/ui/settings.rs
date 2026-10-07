@@ -677,7 +677,7 @@ fn rail(state: &SettingsWindow) -> Element<'_, Message> {
     )
     .width(Length::Fixed(RAIL_WIDTH))
     .height(Length::Fill)
-    .style(move |_theme| container::background(c.surface_container))
+    .style(move |_theme| container::background(c.surface_container_low))
     .into()
 }
 

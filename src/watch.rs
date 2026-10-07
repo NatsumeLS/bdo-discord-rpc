@@ -24,8 +24,6 @@ use rust_i18n::t;
 const CONNECT_MIN_BACKOFF: u64 = 5;
 const CONNECT_MAX_BACKOFF: u64 = 60;
 
-const FAMILY_RECHECK: Duration = Duration::from_secs(30);
-
 const PROFILE_MIN_BACKOFF: u64 = 60;
 const PROFILE_MAX_BACKOFF: u64 = 900;
 
@@ -301,7 +299,7 @@ pub fn refresh_profile(
 #[derive(Default)]
 struct Derived {
     family: Option<String>,
-    last_family_check: Option<Instant>,
+    family_missing: bool,
     profile: Option<Profile>,
     profile_url: Option<String>,
     unmatched: Option<String>,
@@ -644,20 +642,19 @@ impl<'a> Watcher<'a> {
         self.families = families;
     }
 
+    // Read even when hidden, since the profile lookup searches by it.
     fn read_family(&mut self) {
-        let due = self
-            .derived
-            .last_family_check
-            .is_none_or(|t| t.elapsed() >= FAMILY_RECHECK);
-        if self.derived.family.is_some() || !self.config.identity.show_family || !due {
+        let d = &mut self.derived;
+        if d.family.is_some() {
             return;
         }
-        let first_check = self.derived.last_family_check.is_none();
-        self.derived.last_family_check = Some(Instant::now());
-        self.derived.family = self.derived.user_cache.newest_family.clone();
-        match &self.derived.family {
+        d.family = d.user_cache.newest_family.clone();
+        match &d.family {
             Some(name) => log(&format!("Family: {name}")),
-            None if first_check => win::warn("Family: Not found in UserCache, retrying"),
+            None if !d.family_missing => {
+                d.family_missing = true;
+                win::warn("Family: Not found in UserCache, retrying");
+            }
             None => {}
         }
     }

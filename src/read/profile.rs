@@ -302,5 +302,5 @@ pub fn load_cache(path: &Path) -> Option<Profile> {
 pub fn save_cache(path: &Path, profile: &Profile) -> Result<(), String> {
     let text =
         serde_json::to_string_pretty(profile).map_err(|e| format!("Serializing the Cache: {e}"))?;
-    std::fs::write(path, text).map_err(|e| format!("Writing {}: {e}", path.display()))
+    crate::config::write_atomic(path, &text)
 }

@@ -321,11 +321,22 @@ pub fn add_name(path: &Path, table: Table, key: &str, name: &str) -> Result<(), 
         .as_table_like_mut()
         .ok_or_else(|| format!("[{}] is not a Table", table.key()))?
         .insert(key, toml_edit::value(name));
-    std::fs::write(path, doc.to_string()).map_err(|e| format!("Writing {}: {e}", path.display()))
+    write_atomic(path, &doc.to_string())
 }
 
 pub fn save(path: &Path, config: &Config) -> Result<(), String> {
     let body =
         toml::to_string_pretty(config).map_err(|e| format!("Serializing the Config: {e}"))?;
-    std::fs::write(path, body).map_err(|e| format!("Writing {}: {e}", path.display()))
+    write_atomic(path, &body)
+}
+
+/// Written beside the file and renamed over it, so no reader sees it half written.
+pub fn write_atomic(path: &Path, text: &str) -> Result<(), String> {
+    let temp = path.with_extension(format!("{}.tmp", std::process::id()));
+    std::fs::write(&temp, text)
+        .and_then(|()| std::fs::rename(&temp, path))
+        .map_err(|e| {
+            let _ = std::fs::remove_file(&temp);
+            format!("Writing {}: {e}", path.display())
+        })
 }

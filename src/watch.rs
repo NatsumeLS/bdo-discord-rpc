@@ -1141,7 +1141,7 @@ impl<'a> Watcher<'a> {
             return;
         }
         if let Ok(text) = serde_json::to_string(&snapshot) {
-            let _ = std::fs::write(&self.status_path, text);
+            let _ = config::write_atomic(&self.status_path, &text);
             self.published = Some(snapshot);
         }
     }

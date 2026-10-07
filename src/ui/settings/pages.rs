@@ -81,7 +81,7 @@ pub(super) fn about(state: &SettingsWindow) -> Element<'_, Message> {
                 span(&commit[..7])
                     .color(c.primary)
                     .underline(true)
-                    .link(Message::OpenUrl(format!("{repository}/commit/{commit}"))),
+                    .link(Message::OpenUrl(format!("{repository}/tree/{commit}"))),
                 span(")").color(c.on_surface),
             ]
             .on_link_click(|message| message)

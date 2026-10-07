@@ -200,8 +200,8 @@ fn tcp_segment(frame: &[u8], linktype: i32) -> Option<Segment<'_>> {
         0 => ip.len(),
         n => n.min(ip.len()),
     };
-    let src_ip = Ipv4Addr::new(*ip.get(12)?, ip[13], ip[14], ip[15]);
-    let dst_ip = Ipv4Addr::new(*ip.get(16)?, ip[17], ip[18], ip[19]);
+    let src_ip = Ipv4Addr::from(<[u8; 4]>::try_from(ip.get(12..16)?).ok()?);
+    let dst_ip = Ipv4Addr::from(<[u8; 4]>::try_from(ip.get(16..20)?).ok()?);
     let tcp = ip.get(header..total)?;
     let port = |at: usize| Some(u16::from_be_bytes([*tcp.get(at)?, *tcp.get(at + 1)?]));
     let seq = u32::from_be_bytes(tcp.get(4..8)?.try_into().ok()?);

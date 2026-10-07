@@ -15,12 +15,14 @@ fn main() {
             println!("cargo:rerun-if-changed={path}");
         }
     }
+    let commit = commit().unwrap_or_default();
     let version = env!("CARGO_PKG_VERSION");
-    let version = match commit() {
-        Some(hash) => format!("{version} ({hash})"),
-        None => version.to_string(),
+    let version = match commit.as_str() {
+        "" => version.to_string(),
+        hash => format!("{version} ({})", &hash[..7]),
     };
     println!("cargo:rustc-env=VERSION={version}");
+    println!("cargo:rustc-env=COMMIT={commit}");
 
     let mut resource = winresource::WindowsResource::new();
     resource.set_icon("assets/icon.ico");
@@ -42,7 +44,7 @@ fn main() {
 
 fn commit() -> Option<String> {
     let output = std::process::Command::new("git")
-        .args(["rev-parse", "--short=7", "HEAD"])
+        .args(["rev-parse", "HEAD"])
         .output()
         .ok()?;
     output

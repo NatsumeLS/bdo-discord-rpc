@@ -45,6 +45,7 @@ fn avatar() -> iced::widget::image::Handle {
 
 pub(super) fn about(state: &SettingsWindow) -> Element<'_, Message> {
     let c = state.scheme();
+    let repository = env!("CARGO_PKG_REPOSITORY");
 
     let who = row![
         container(iced::widget::image(avatar()).width(72).height(72)).style(move |_theme| {
@@ -60,8 +61,8 @@ pub(super) fn about(state: &SettingsWindow) -> Element<'_, Message> {
                 .color(c.on_surface),
             m3::outlined(
                 c,
-                "github.com/NatsumeLS",
-                Some(Message::OpenUrl("https://github.com/NatsumeLS".into())),
+                repository.trim_start_matches("https://"),
+                Some(Message::OpenUrl(repository.into())),
             ),
         ]
         .spacing(6)
@@ -69,6 +70,25 @@ pub(super) fn about(state: &SettingsWindow) -> Element<'_, Message> {
     ]
     .spacing(16)
     .align_y(iced::Alignment::Center);
+
+    let version = match env!("COMMIT") {
+        "" => pair(state, tr("about.version"), env!("VERSION").to_string()),
+        commit => labeled(
+            state,
+            tr("about.version"),
+            rich_text![
+                span(concat!(env!("CARGO_PKG_VERSION"), " (")).color(c.on_surface),
+                span(&commit[..7])
+                    .color(c.primary)
+                    .underline(true)
+                    .link(Message::OpenUrl(format!("{repository}/commit/{commit}"))),
+                span(")").color(c.on_surface),
+            ]
+            .on_link_click(|message| message)
+            .size(type_scale::BODY_MEDIUM)
+            .into(),
+        ),
+    };
 
     let mut built = column![heading(state, tr("about.built_with"))].spacing(6);
     for &(name, license) in LIBRARIES {
@@ -81,7 +101,7 @@ pub(super) fn about(state: &SettingsWindow) -> Element<'_, Message> {
         divider(state),
         column![
             heading(state, tr("about.this_app")),
-            pair(state, tr("about.version"), env!("VERSION").to_string()),
+            version,
             pair(
                 state,
                 tr("about.license"),
@@ -365,18 +385,32 @@ fn flagged_pair<'a>(
     attention: bool,
 ) -> Element<'a, Message> {
     let c = state.scheme();
+    labeled(
+        state,
+        label,
+        text(value)
+            .size(type_scale::BODY_MEDIUM)
+            .color(if attention { c.error } else { c.on_surface })
+            .into(),
+    )
+}
+
+fn labeled<'a>(
+    state: &SettingsWindow,
+    label: impl IntoFragment<'a>,
+    value: Element<'a, Message>,
+) -> Element<'a, Message> {
     row![
         container(
             text(label)
                 .size(type_scale::BODY_MEDIUM)
-                .color(c.on_surface_variant)
+                .color(state.scheme().on_surface_variant)
         )
         .width(Length::Fixed(140.0)),
-        text(value)
-            .size(type_scale::BODY_MEDIUM)
-            .color(if attention { c.error } else { c.on_surface }),
+        value,
     ]
     .spacing(12)
+    .align_y(iced::Alignment::Center)
     .into()
 }
 

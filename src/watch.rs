@@ -344,6 +344,7 @@ struct Game {
     started_at: Option<SystemTime>,
     tail: LogTail,
     service: Option<String>,
+    version: Option<u32>,
     cap_warned: bool,
 }
 
@@ -599,6 +600,10 @@ impl<'a> Watcher<'a> {
         self.game = match running {
             Some(process) => {
                 log(&format!("Game: Found at {}", process.root.display()));
+                let version = game::client_version(&process.root);
+                if let Some(version) = version {
+                    log(&format!("Game: Client Version {version}"));
+                }
                 let service = game::detect_service(&process.root);
                 match &service {
                     Some(code) if region::get(code).is_none() => win::warn(&format!(
@@ -613,6 +618,7 @@ impl<'a> Watcher<'a> {
                 Some(Game {
                     tail: LogTail::new(&process.root, process.started_at),
                     service,
+                    version,
                     root: process.root,
                     started_at: process.started_at,
                     cap_warned: false,
@@ -944,6 +950,25 @@ impl<'a> Watcher<'a> {
         (text, !matches!(kind, "starting" | "listening"))
     }
 
+    /// Flagged when the region's capture keys were read from another build.
+    fn client_row(&self) -> Option<(String, bool)> {
+        let game = self.game.as_ref()?;
+        let version = game.version?;
+        let keys = game
+            .service
+            .as_deref()
+            .and_then(region::get)
+            .and_then(|r| r.capture.as_ref())
+            .map(|wire| wire.version);
+        Some(match keys {
+            Some(keys) if keys != version => (
+                t!("overview.client_mismatch", version = version, keys = keys).into_owned(),
+                true,
+            ),
+            _ => (version.to_string(), false),
+        })
+    }
+
     fn log_row(&self) -> Option<(String, bool)> {
         let tail = &self.game.as_ref()?.tail;
         let file = tail.file_name()?;
@@ -1224,6 +1249,7 @@ impl<'a> Watcher<'a> {
                             game.map(|g| g.root.display().to_string()),
                         ),
                         row(tr("overview.region"), game.and_then(|_| self.region())),
+                        flagged(tr("overview.client"), self.client_row()),
                         flagged(tr("overview.log_file"), self.log_row()),
                         flagged(tr("overview.capture"), Some(self.capture_row())),
                     ],

@@ -209,6 +209,10 @@ fn probe() -> i32 {
             region = resolve_region(&config, service.as_deref()).unwrap_or_default();
             println!("Game Root : {}", root.display());
             println!(
+                "Client    : {}",
+                game::client_version(root).map_or("(unknown)".into(), |v| v.to_string())
+            );
+            println!(
                 "Region    : {} ({})",
                 or_unknown(&region),
                 service.as_deref().unwrap_or("no service.ini TYPE")

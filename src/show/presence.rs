@@ -28,6 +28,17 @@ pub struct Context {
     pub life_skills: [String; 11],
 }
 
+/// A name the user gave the character, or else its name in game from the capture.
+pub fn character_name(config: &Config, captured: &Captured, key: &str) -> Option<String> {
+    config.characters.get(key).cloned().or_else(|| {
+        captured
+            .character
+            .as_ref()
+            .filter(|(id, _)| id == key)
+            .map(|(_, name)| name.clone())
+    })
+}
+
 pub fn context(
     config: &Config,
     state: &GameState,
@@ -47,16 +58,7 @@ pub fn context(
         .show_character
         .then_some(character)
         .flatten();
-    // A name the user gave it, or else its name in game from the capture.
-    let named = detected.and_then(|key| {
-        config.characters.get(key).cloned().or_else(|| {
-            captured
-                .character
-                .as_ref()
-                .filter(|(id, _)| id == key)
-                .map(|(_, name)| name.clone())
-        })
-    });
+    let named = detected.and_then(|key| character_name(config, captured, key));
     let current = match detected {
         Some(_) => named
             .as_deref()

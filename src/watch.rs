@@ -15,7 +15,7 @@ use crate::read::log_tail::{GameState, LogTail};
 use crate::read::profile::{self, Profile};
 use crate::region;
 use crate::show::discord::Presence;
-use crate::show::presence::{build, context, Context, PresenceFields};
+use crate::show::presence::{self, build, context, Context, PresenceFields};
 use crate::ui::lang::tr;
 use crate::ui::tray::Health;
 use crate::win::{self, log};
@@ -928,14 +928,8 @@ impl<'a> Watcher<'a> {
         captured
     }
 
-    /// A name the user gave the character, or else its name in game.
     fn character_name(&self, key: &str) -> Option<String> {
-        self.config.characters.get(key).cloned().or_else(|| {
-            self.captured_raw()
-                .character
-                .filter(|(id, _)| id == key)
-                .map(|(_, name)| name)
-        })
+        presence::character_name(&self.config, &self.captured_raw(), key)
     }
 
     fn service(&self) -> Option<&str> {

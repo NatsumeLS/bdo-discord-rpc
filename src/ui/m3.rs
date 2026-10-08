@@ -208,6 +208,7 @@ pub struct Scheme {
     pub surface_container_highest: Color,
     pub outline: Color,
     pub outline_variant: Color,
+    pub placeholder: Color,
     pub error: Color,
     pub warning: Color,
 }
@@ -243,6 +244,12 @@ impl Scheme {
             surface_container_highest: role(Roles::surface_container_highest()),
             outline: role(Roles::outline()),
             outline_variant: role(Roles::outline_variant()),
+            // Dark `on_surface_variant` is too close to the typed text to tell apart.
+            placeholder: role(if dark {
+                Roles::outline()
+            } else {
+                Roles::on_surface_variant()
+            }),
             // A tone of our own: M3's dark `error` is a pale salmon.
             error: argb_to_color(scheme.error_palette.get(if dark {
                 ERROR_TONE.0
@@ -399,7 +406,7 @@ pub fn field_style(c: Scheme, status: text_input::Status, wrong: bool) -> text_i
             radius: shape::EXTRA_SMALL.into(),
         },
         icon: c.on_surface_variant,
-        placeholder: c.on_surface_variant,
+        placeholder: c.placeholder,
         value: if wrong { c.error } else { c.on_surface },
         selection: c.primary_container,
     }

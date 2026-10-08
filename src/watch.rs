@@ -996,9 +996,11 @@ impl<'a> Watcher<'a> {
         if self.published.as_ref() == Some(&snapshot) {
             return;
         }
+        // Only once written, so a failed write is tried again next tick.
         if let Ok(text) = serde_json::to_string(&snapshot) {
-            let _ = config::write_atomic(&self.status_path, &text);
-            self.published = Some(snapshot);
+            if config::write_atomic(&self.status_path, &text).is_ok() {
+                self.published = Some(snapshot);
+            }
         }
     }
 

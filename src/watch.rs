@@ -307,6 +307,8 @@ struct Game {
     service: Option<String>,
     version: Option<u32>,
     cap_warned: bool,
+    /// The read error last warned about, so each is said once.
+    unreadable: Option<String>,
 }
 
 struct Session {
@@ -420,6 +422,7 @@ struct Watcher<'a> {
 
     status_path: PathBuf,
     published: Option<Snapshot>,
+    status_failed: bool,
 }
 
 impl<'a> Watcher<'a> {
@@ -461,6 +464,7 @@ impl<'a> Watcher<'a> {
             prompt: win::ChildWindow::default(),
             status_path: config::status_path(),
             published: None,
+            status_failed: false,
         }
     }
 
@@ -499,6 +503,12 @@ impl<'a> Watcher<'a> {
             win::warn(
                 "Log File: The Game stopped writing it at its Size Cap, so it has nothing new until the Game restarts",
             );
+        }
+        if game.tail.error != game.unreadable {
+            if let Some(e) = &game.tail.error {
+                win::warn(&format!("Log File: Could not read it ({e})"));
+            }
+            game.unreadable.clone_from(&game.tail.error);
         }
         self.follow_capture();
         self.check_capture();
@@ -585,6 +595,7 @@ impl<'a> Watcher<'a> {
                     root: process.root,
                     started_at: process.started_at,
                     cap_warned: false,
+                    unreadable: None,
                 })
             }
             None => {
@@ -992,8 +1003,18 @@ impl<'a> Watcher<'a> {
         }
         // Only once written, so a failed write is tried again next tick.
         if let Ok(text) = serde_json::to_string(&snapshot) {
-            if config::write_atomic(&self.status_path, &text).is_ok() {
-                self.published = Some(snapshot);
+            match config::write_atomic(&self.status_path, &text) {
+                Ok(()) => {
+                    self.published = Some(snapshot);
+                    self.status_failed = false;
+                }
+                Err(e) if !self.status_failed => {
+                    self.status_failed = true;
+                    win::warn(&format!(
+                        "Status: Could not write it for the Settings Window, retrying ({e})"
+                    ));
+                }
+                Err(_) => {}
             }
         }
     }

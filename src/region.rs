@@ -3,7 +3,7 @@ use std::sync::Mutex;
 
 use serde::Deserialize;
 
-use crate::data;
+use crate::{data, win};
 
 #[derive(Deserialize)]
 pub struct Region {
@@ -31,19 +31,42 @@ pub struct Wire {
 fn all() -> &'static BTreeMap<String, Region> {
     static REGIONS: Mutex<Option<(u32, &'static BTreeMap<String, Region>)>> = Mutex::new(None);
     data::cached(&REGIONS, || {
-        toml::from_str(&data::load("service/regions.toml")).unwrap_or_default()
+        toml::from_str(&data::load("service/regions.toml")).unwrap_or_else(|e| {
+            win::warn(&format!(
+                "Data: regions.toml does not parse, so no Region is known ({e})"
+            ));
+            BTreeMap::new()
+        })
     })
 }
 
 fn wires() -> &'static BTreeMap<u32, Wire> {
     static WIRES: Mutex<Option<(u32, &'static BTreeMap<u32, Wire>)>> = Mutex::new(None);
     data::cached(&WIRES, || {
+        let table = match data::load("service/opcodes.toml").parse::<toml::Table>() {
+            Ok(table) => table,
+            Err(e) => {
+                win::warn(&format!(
+                    "Data: opcodes.toml does not parse, so the Capture has no Opcodes ({e})"
+                ));
+                return BTreeMap::new();
+            }
+        };
         // Each build on its own, so one with a typo loses only itself.
-        data::load("service/opcodes.toml")
-            .parse::<toml::Table>()
-            .unwrap_or_default()
+        table
             .into_iter()
-            .filter_map(|(build, keys)| Some((build.parse().ok()?, keys.try_into().ok()?)))
+            .filter_map(|(build, keys)| {
+                let wire = build
+                    .parse()
+                    .map_err(|e: std::num::ParseIntError| e.to_string())
+                    .and_then(|b| keys.try_into().map(|w| (b, w)).map_err(|e| e.to_string()));
+                wire.inspect_err(|e| {
+                    win::warn(&format!(
+                        "Data: [{build}] in opcodes.toml does not parse, skipping it ({e})"
+                    ));
+                })
+                .ok()
+            })
             .collect()
     })
 }

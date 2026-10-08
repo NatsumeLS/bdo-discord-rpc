@@ -1,9 +1,10 @@
 use std::collections::HashMap;
 use std::sync::Mutex;
 
+use serde::de::DeserializeOwned;
 use serde::Deserialize;
 
-use crate::data;
+use crate::{data, win};
 
 // The game's own tables, as they are dumped to assets/client.
 #[derive(Deserialize)]
@@ -50,14 +51,24 @@ pub struct Place {
     pub territory: String,
 }
 
+fn parse<T: DeserializeOwned>(name: &str) -> Option<T> {
+    serde_json::from_str(&data::load(name))
+        .inspect_err(|e| {
+            win::warn(&format!(
+                "Data: {name} does not parse, so there is no Node or Territory ({e})"
+            ));
+        })
+        .ok()
+}
+
 fn nodes() -> &'static [Node] {
     static NODES: Mutex<Option<(u32, &'static Vec<Node>)>> = Mutex::new(None);
     data::cached::<Vec<Node>>(&NODES, || {
-        let (Ok(nodes), Ok(waypoints), Ok(regions), Ok(text)) = (
-            serde_json::from_str::<Vec<Exploration>>(&data::load("client/exploration.json")),
-            serde_json::from_str::<Waypoints>(&data::load("client/waypoints.json")),
-            serde_json::from_str::<Vec<Region>>(&data::load("client/regions.json")),
-            serde_json::from_str::<Localization>(&data::load("client/localization.json")),
+        let (Some(nodes), Some(waypoints), Some(regions), Some(text)) = (
+            parse::<Vec<Exploration>>("client/exploration.json"),
+            parse::<Waypoints>("client/waypoints.json"),
+            parse::<Vec<Region>>("client/regions.json"),
+            parse::<Localization>("client/localization.json"),
         ) else {
             return Vec::new();
         };

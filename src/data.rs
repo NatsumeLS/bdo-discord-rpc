@@ -90,10 +90,11 @@ fn save(local: &mut Manifest, name: &str, text: &str, at: i64) -> Result<(), Str
 }
 
 /// Writes out every embedded file the data folder lacks or holds an older
-/// copy of, so the folder holds them all.
-pub fn extract() -> Result<(), String> {
+/// copy of, so the folder holds them all, and returns their names.
+pub fn extract() -> Result<Vec<&'static str>, String> {
     let embedded = manifest(MANIFEST);
     let mut local = local_manifest();
+    let mut written = Vec::new();
     for &(name, text, _) in EMBEDDED {
         let at = embedded.get(name).copied().unwrap_or_default();
         if local.get(name).is_some_and(|&held| held >= at) && config::data_dir().join(name).exists()
@@ -101,8 +102,9 @@ pub fn extract() -> Result<(), String> {
             continue;
         }
         save(&mut local, name, text, at)?;
+        written.push(name);
     }
-    Ok(())
+    Ok(written)
 }
 
 /// The file's text, from the data folder unless its copy there is older than

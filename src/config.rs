@@ -348,6 +348,10 @@ pub fn load_or_create(path: &Path) -> Result<Config, String> {
     if !path.exists() && !adopt_old_name(path) {
         let config = Config::default();
         save(path, &config)?;
+        crate::win::log(&format!(
+            "Config: Created {} with the Defaults",
+            path.display()
+        ));
         return Ok(config);
     }
 
@@ -419,16 +423,23 @@ fn apply(step: &Step, doc: &mut toml_edit::DocumentMut) -> Result<Option<PathBuf
         }
         // Never over a newer copy, which the old one is then no use beside.
         if to.exists() {
-            let _ = std::fs::remove_file(&from);
+            delete(&from);
             continue;
         }
+        // A folder that cannot be made fails the rename, which says so.
         if let Some(parent) = to.parent() {
             let _ = std::fs::create_dir_all(parent);
         }
-        let _ = std::fs::rename(&from, &to);
+        if let Err(e) = std::fs::rename(&from, &to) {
+            crate::win::warn(&format!(
+                "Config: Could not move {} to {} ({e})",
+                from.display(),
+                to.display()
+            ));
+        }
     }
     for path in step.delete.iter().filter_map(|name| beside_exe(name)) {
-        let _ = std::fs::remove_file(path);
+        delete(&path);
     }
     let mut backup = None;
     if let Some(reset) = &step.reset {
@@ -461,6 +472,17 @@ fn apply(step: &Step, doc: &mut toml_edit::DocumentMut) -> Result<Option<PathBuf
         take(doc, key);
     }
     Ok(backup)
+}
+
+// Gone already is fine, since a step may run twice.
+fn delete(path: &Path) {
+    match std::fs::remove_file(path) {
+        Err(e) if e.kind() != std::io::ErrorKind::NotFound => crate::win::warn(&format!(
+            "Config: Could not delete {} ({e})",
+            path.display()
+        )),
+        _ => {}
+    }
 }
 
 fn take(doc: &mut toml_edit::DocumentMut, key: &str) -> Option<toml_edit::Item> {

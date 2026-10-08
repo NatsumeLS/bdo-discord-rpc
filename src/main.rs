@@ -112,8 +112,13 @@ fn run() -> i32 {
         )),
         Err(e) => win::warn(&format!("Config: Could not migrate ({e})")),
     }
-    if let Err(e) = data::extract() {
-        win::warn(&format!("Data: Could not write the Data Folder ({e})"));
+    match data::extract() {
+        Ok(written) if !written.is_empty() => log(&format!(
+            "Data: Wrote {} into the Data Folder, from this Version",
+            written.join(", ")
+        )),
+        Ok(_) => {}
+        Err(e) => win::warn(&format!("Data: Could not write the Data Folder ({e})")),
     }
     if let Ok(config) = config::load_or_create(&config::config_path()) {
         ui::lang::apply(&config);

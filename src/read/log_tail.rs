@@ -34,6 +34,8 @@ pub struct LogTail {
     not_before: Option<SystemTime>,
     /// The client stopped writing this file at its size cap.
     pub capped: bool,
+    /// Why the folder or the file could not be read, until it can be.
+    pub error: Option<String>,
 }
 
 impl LogTail {
@@ -47,6 +49,7 @@ impl LogTail {
             last_scan: None,
             not_before,
             capped: false,
+            error: None,
         }
     }
 
@@ -65,8 +68,12 @@ impl LogTail {
         }
         self.last_scan = Some(Instant::now());
 
-        let Ok(entries) = std::fs::read_dir(&self.log_dir) else {
-            return;
+        let entries = match std::fs::read_dir(&self.log_dir) {
+            Ok(entries) => entries,
+            Err(e) => {
+                self.error = Some(format!("{}: {e}", self.log_dir.display()));
+                return;
+            }
         };
 
         let newest = entries
@@ -105,12 +112,15 @@ impl LogTail {
             return;
         };
 
-        let Ok(mut file) = File::open(&path) else {
-            return;
+        let opened = File::open(&path).and_then(|file| Ok((file.metadata()?.len(), file)));
+        let (size, mut file) = match opened {
+            Ok(opened) => opened,
+            Err(e) => {
+                self.error = Some(format!("{}: {e}", path.display()));
+                return;
+            }
         };
-        let Ok(size) = file.metadata().map(|m| m.len()) else {
-            return;
-        };
+        self.error = None;
 
         if size < self.offset {
             self.rewind();
@@ -122,8 +132,12 @@ impl LogTail {
         let mut buffer = vec![0u8; READ_CHUNK];
         loop {
             let read = match file.read(&mut buffer) {
-                Ok(0) | Err(_) => break,
+                Ok(0) => break,
                 Ok(n) => n,
+                Err(e) => {
+                    self.error = Some(format!("{}: {e}", path.display()));
+                    break;
+                }
             };
             self.offset += read as u64;
 

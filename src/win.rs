@@ -268,7 +268,12 @@ pub fn startup_enabled() -> bool {
     };
 
     if startup_command().is_ok_and(|current| current != value) {
-        let _ = set_startup(true);
+        match set_startup(true) {
+            Ok(()) => log("Run at Startup: Pointed at this Exe, it named another Path"),
+            Err(e) => warn(&format!(
+                "Run at Startup: It names another Path and could not be pointed at this Exe ({e})"
+            )),
+        }
     }
 
     true

@@ -607,24 +607,26 @@ fn note(verbose: bool, text: &str) {
 /// The game's opcodes, or none without any, and then the game files
 /// stand in. A build without its own checks the repo for them.
 fn wire_of(process: &game::GameProcess, verbose: bool) -> Option<&'static Wire> {
-    let client = game::client_version(&process.root);
-    if client.is_some() && region::wire(client).map(|(build, _)| build) != client {
-        match data::update() {
-            Ok(names) if !names.is_empty() => {
-                let text = format!("Data: Downloaded {}", names.join(", "));
-                if verbose {
-                    println!("{text}");
-                } else {
-                    log(&text);
-                }
-            }
-            Ok(_) => {}
-            Err(e) => note(
-                verbose,
-                &format!("Data: Could not check for new Opcodes ({e})"),
-            ),
+    let info = |text: &str| {
+        if verbose {
+            println!("{text}");
+        } else {
+            log(text);
         }
-    }
+    };
+    let client = game::client_version(&process.root);
+    let own = |client: u32| region::wire(Some(client)).is_some_and(|(build, _)| build == client);
+    let checked = client.filter(|&client| !own(client)).map(|client| {
+        info(&format!("Data: Checking for Opcodes for {client}"));
+        let checked = data::update();
+        match &checked {
+            Ok(names) if !names.is_empty() => {
+                info(&format!("Data: Downloaded {}", names.join(", ")));
+            }
+            _ => {}
+        }
+        checked
+    });
     let Some((build, wire)) = region::wire(client) else {
         note(
             verbose,
@@ -633,13 +635,18 @@ fn wire_of(process: &game::GameProcess, verbose: bool) -> Option<&'static Wire> 
         return None;
     };
     // Still decoded, since most patches leave the messages where they were.
-    if let Some(client) = client.filter(|&client| client != build) {
-        note(
+    match (client.filter(|&client| client != build), checked) {
+        (Some(_), Some(Err(e))) => note(
+            verbose,
+            &format!("Data: Could not check for new Opcodes ({e}), using the ones for {build}"),
+        ),
+        (Some(client), _) => note(
             verbose,
             &format!(
-                "Capture: The Client is version {client} and the Opcodes are for {build}, so they may have moved"
+                "Data: No Opcodes for {client} yet, using the ones for {build} until an Update is published, checked again at the next Game Start"
             ),
-        );
+        ),
+        (None, _) => {}
     }
     Some(wire)
 }

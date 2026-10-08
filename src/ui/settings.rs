@@ -415,9 +415,15 @@ impl SettingsWindow {
     }
 
     fn save(&mut self) {
+        // Numbered, so a file set aside before is not replaced.
         let kept = self
             .no_baseline
-            .then(|| self.path.with_extension("toml.broken"));
+            .then(|| {
+                std::iter::once(self.path.with_extension("toml.broken"))
+                    .chain((2..).map(|n| self.path.with_extension(format!("toml.broken{n}"))))
+                    .find(|path| !path.exists())
+            })
+            .flatten();
         if let Some(kept) = &kept {
             if self.path.exists() && std::fs::rename(&self.path, kept).is_err() {
                 self.message = Some((tr("actions.set_aside_failed"), false));

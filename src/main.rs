@@ -4,6 +4,7 @@ rust_i18n::i18n!("locales", fallback = "en");
 
 mod config;
 mod data;
+mod http;
 mod phase;
 mod read;
 mod region;

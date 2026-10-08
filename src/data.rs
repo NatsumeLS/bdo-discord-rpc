@@ -6,9 +6,8 @@ use std::time::Duration;
 
 use serde::de::DeserializeOwned;
 
-use crate::config;
-use crate::read::{capture, profile};
-use crate::region;
+use crate::read::capture;
+use crate::{config, http, region};
 
 /// A file's name, its text as this build embeds it, and whether a downloaded
 /// copy reads as what the app parses it into.
@@ -125,11 +124,7 @@ pub fn load(name: &str) -> Cow<'static, str> {
 /// Downloads every file the repo has newer than both copies here into the
 /// data folder, and returns their names.
 pub fn update() -> Result<Vec<&'static str>, String> {
-    let remote = manifest(&profile::get(
-        &url("manifest.json"),
-        "manifest.json",
-        TIMEOUT,
-    )?);
+    let remote = manifest(&http::get(&url("manifest.json"), "manifest.json", TIMEOUT)?);
     let embedded = manifest(MANIFEST);
     let mut local = local_manifest();
     let mut updated = Vec::new();
@@ -141,7 +136,7 @@ pub fn update() -> Result<Vec<&'static str>, String> {
         if Some(&at) <= local.get(name).max(embedded.get(name)) {
             continue;
         }
-        let text = profile::get(&url(name), name, TIMEOUT)?;
+        let text = http::get(&url(name), name, TIMEOUT)?;
         // A newer layout than this build reads would replace a working copy.
         if !reads(&text) {
             return Err(format!("{name} is not in the Layout this Version reads"));

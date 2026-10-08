@@ -1,6 +1,8 @@
 # One table per service, named after the TYPE the game writes in service.ini.
 # name: how the region is shown. search: the Adventurer Profile search, with
 # {family} where the family name goes. servers: names as the game lists them.
+# Bump this file's time in manifest.json with every change, or the app keeps
+# its copy.
 [ASIA]
 name = "Asia"
 search = "https://blackdesert.pearlabyss.com/Asia/en-US/Game/Profile/Search?_type=2&_keyword={family}"

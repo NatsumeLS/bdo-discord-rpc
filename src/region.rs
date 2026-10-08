@@ -1,7 +1,9 @@
 use std::collections::BTreeMap;
-use std::sync::OnceLock;
+use std::sync::Mutex;
 
 use serde::Deserialize;
+
+use crate::data;
 
 #[derive(Deserialize)]
 pub struct Region {
@@ -27,16 +29,17 @@ pub struct Wire {
 }
 
 fn all() -> &'static BTreeMap<String, Region> {
-    static REGIONS: OnceLock<BTreeMap<String, Region>> = OnceLock::new();
-    REGIONS
-        .get_or_init(|| toml::from_str(include_str!("../assets/regions.toml")).unwrap_or_default())
+    static REGIONS: Mutex<Option<(u32, &'static BTreeMap<String, Region>)>> = Mutex::new(None);
+    data::cached(&REGIONS, || {
+        toml::from_str(&data::load("service/regions.toml")).unwrap_or_default()
+    })
 }
 
 fn wires() -> &'static BTreeMap<u32, Wire> {
-    static WIRES: OnceLock<BTreeMap<u32, Wire>> = OnceLock::new();
-    WIRES.get_or_init(|| {
+    static WIRES: Mutex<Option<(u32, &'static BTreeMap<u32, Wire>)>> = Mutex::new(None);
+    data::cached(&WIRES, || {
         // Each build on its own, so one with a typo loses only itself.
-        include_str!("../assets/opcodes.toml")
+        data::load("service/opcodes.toml")
             .parse::<toml::Table>()
             .unwrap_or_default()
             .into_iter()

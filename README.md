@@ -44,6 +44,8 @@ It sits in the system tray. It shows your presence while the game runs, and clea
 
 It only listens, and never sends anything. Without Npcap, everything else still works from the game's files.
 
+Game patches can move what the capture reads. The app keeps its data in a `data` folder next to the exe, and when the game updates to a version the app does not know yet, it downloads the newest data from this repository into that folder, so it keeps working without an app update. Deleting the folder resets it to the data the app shipped with.
+
 ## Adventurer Profile
 
 Your characters' names, classes and portraits are always shown. Levels, guild, gear score, energy, contribution points and life skills stay hidden until you make them public:
@@ -82,4 +84,4 @@ cargo build --release
 
 ### Location Data
 
-The node, region and territory data in `assets/game/` comes from the game's own data files. It is refreshed by the maintainer after patches that add areas.
+The node, region and territory data in `assets/game/` comes from the game's own data files. It is refreshed by the maintainer after patches that add areas, and reaches the app the same way.

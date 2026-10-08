@@ -265,12 +265,16 @@ pub fn log_path() -> PathBuf {
     config_path().with_extension("log")
 }
 
+pub fn data_dir() -> PathBuf {
+    config_path().with_file_name("data")
+}
+
 pub fn profile_cache_path() -> PathBuf {
-    config_path().with_file_name("profile.json")
+    data_dir().join("profile.json")
 }
 
 pub fn status_path() -> PathBuf {
-    config_path().with_file_name("status.json")
+    data_dir().join("status.json")
 }
 
 pub fn mtime(path: &Path) -> Option<SystemTime> {
@@ -323,7 +327,9 @@ pub fn save(path: &Path, config: &Config) -> Result<(), String> {
 /// Written beside the file and renamed over it, so no reader sees it half written.
 pub fn write_atomic(path: &Path, text: &str) -> Result<(), String> {
     let temp = path.with_extension(format!("{}.tmp", std::process::id()));
-    std::fs::write(&temp, text)
+    path.parent()
+        .map_or(Ok(()), std::fs::create_dir_all)
+        .and_then(|()| std::fs::write(&temp, text))
         .and_then(|()| std::fs::rename(&temp, path))
         .map_err(|e| {
             let _ = std::fs::remove_file(&temp);

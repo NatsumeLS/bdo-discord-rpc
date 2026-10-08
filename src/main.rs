@@ -3,6 +3,7 @@
 rust_i18n::i18n!("locales", fallback = "en");
 
 mod config;
+mod data;
 mod phase;
 mod read;
 mod region;
@@ -94,6 +95,9 @@ fn run() -> i32 {
     }
     win::enable_logfile(config::log_path());
     log(&format!("Started version {}", env!("VERSION")));
+    if let Err(e) = data::extract() {
+        win::warn(&format!("Data: Could not write the Data Folder ({e})"));
+    }
     if let Ok(config) = config::load_or_create(&config::config_path()) {
         ui::lang::apply(&config);
     }

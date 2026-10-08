@@ -115,7 +115,7 @@ fn agent() -> ureq::Agent {
         .into()
 }
 
-fn get(url: &str, what: &str) -> Result<String, String> {
+pub fn get(url: &str, what: &str) -> Result<String, String> {
     agent()
         .get(url)
         .call()

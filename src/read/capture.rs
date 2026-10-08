@@ -1,7 +1,7 @@
 use std::collections::{BTreeMap, HashMap};
 use std::io::Write;
 use std::net::{IpAddr, Ipv4Addr, SocketAddrV4, ToSocketAddrs, UdpSocket};
-use std::sync::OnceLock;
+use std::sync::Mutex;
 use std::time::{Duration, Instant};
 
 use chrono::Local;
@@ -10,6 +10,7 @@ use serde::Deserialize;
 
 use windows_sys::Win32::System::LibraryLoader::{LoadLibraryW, SetDllDirectoryW};
 
+use crate::data;
 use crate::phase::Phase;
 use crate::read::{game, log_tail};
 use crate::region::{self, Wire};
@@ -24,7 +25,7 @@ const SERVER_COUNT: u32 = 99;
 const SYNC_CHAIN: usize = 3;
 const MAX_PENDING: usize = 256;
 
-// The game's own tables, as tools/dump.rs writes them to assets/game.
+// The game's own tables, as they are dumped to assets/game.
 #[derive(Deserialize)]
 struct Exploration {
     key: u32,
@@ -70,17 +71,13 @@ pub struct Place {
 }
 
 fn nodes() -> &'static [Node] {
-    static NODES: OnceLock<Vec<Node>> = OnceLock::new();
-    NODES.get_or_init(|| {
+    static NODES: Mutex<Option<(u32, &'static Vec<Node>)>> = Mutex::new(None);
+    data::cached::<Vec<Node>>(&NODES, || {
         let (Ok(nodes), Ok(waypoints), Ok(regions), Ok(text)) = (
-            serde_json::from_str::<Vec<Exploration>>(include_str!(
-                "../../assets/game/exploration.json"
-            )),
-            serde_json::from_str::<Waypoints>(include_str!("../../assets/game/waypoints.json")),
-            serde_json::from_str::<Vec<Region>>(include_str!("../../assets/game/regions.json")),
-            serde_json::from_str::<Localization>(include_str!(
-                "../../assets/game/localization.json"
-            )),
+            serde_json::from_str::<Vec<Exploration>>(&data::load("game/exploration.json")),
+            serde_json::from_str::<Waypoints>(&data::load("game/waypoints.json")),
+            serde_json::from_str::<Vec<Region>>(&data::load("game/regions.json")),
+            serde_json::from_str::<Localization>(&data::load("game/localization.json")),
         ) else {
             return Vec::new();
         };
@@ -608,9 +605,26 @@ fn note(verbose: bool, text: &str) {
 }
 
 /// The game's capture keys, or none without any, and then the game files
-/// stand in.
+/// stand in. A build without its own keys checks the repo for them.
 fn wire_of(process: &game::GameProcess, verbose: bool) -> Option<&'static Wire> {
     let client = game::client_version(&process.root);
+    if client.is_some() && region::wire(client).map(|(build, _)| build) != client {
+        match data::update() {
+            Ok(names) if !names.is_empty() => {
+                let text = format!("Data: Downloaded {}", names.join(", "));
+                if verbose {
+                    println!("{text}");
+                } else {
+                    log(&text);
+                }
+            }
+            Ok(_) => {}
+            Err(e) => note(
+                verbose,
+                &format!("Data: Could not check for new Opcodes ({e})"),
+            ),
+        }
+    }
     let Some((build, wire)) = region::wire(client) else {
         note(
             verbose,

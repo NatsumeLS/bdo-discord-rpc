@@ -4,6 +4,8 @@
 # known character ID or name to find them again, and add a table for the new
 # build. A build with no table uses the newest one. Offsets count from the
 # start of the frame, header included. Positions are x, height, z as f32.
+# Bump this file's time in manifest.json with every change, or the app keeps
+# its copy.
 #
 # list: one message per character at character select.
 # enter: the character entering the world, matched by enter_length, its full

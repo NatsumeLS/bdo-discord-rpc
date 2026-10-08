@@ -202,8 +202,8 @@ pub fn refresh_profile(
     let target = match url {
         Some(url) => url.clone(),
         None => {
-            let found = if !config.profile.url.trim().is_empty() {
-                config.profile.url.clone()
+            let found = if let Some(configured) = non_empty(&config.profile.url) {
+                configured
             } else if let Some(cached) = profile.as_ref().and_then(|p| p.url.clone()) {
                 cached
             } else if let Some(family) = family {
@@ -231,7 +231,7 @@ pub fn refresh_profile(
 
     // A search with no exact match takes its first result, which may be
     // another family's page.
-    let searched = config.profile.url.trim().is_empty();
+    let searched = non_empty(&config.profile.url).is_none();
     let fetched =
         profile::fetch(&target).and_then(|fetched| match (family, fetched.family.as_deref()) {
             (Some(wanted), Some(found)) if searched && !wanted.eq_ignore_ascii_case(found) => {
@@ -937,7 +937,7 @@ impl<'a> Watcher<'a> {
     }
 
     fn family_chosen(&self) -> bool {
-        !self.config.identity.family_name.trim().is_empty()
+        non_empty(&self.config.identity.family_name).is_some()
     }
 
     fn region(&self) -> Option<String> {

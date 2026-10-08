@@ -9,7 +9,8 @@ use serde::{Deserialize, Serialize};
 
 use crate::config::{self, Config, Table};
 use crate::phase::{self, Phase};
-use crate::read::capture::{CaptureState, Captured, Place};
+use crate::read::capture::nodes::Place;
+use crate::read::capture::{CaptureState, Captured};
 use crate::read::game::{self, GameFinder, GameProcess};
 use crate::read::log_tail::{GameState, LogTail};
 use crate::read::profile::{self, Profile, LIFE_SKILLS};

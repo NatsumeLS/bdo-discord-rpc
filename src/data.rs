@@ -6,7 +6,7 @@ use std::time::Duration;
 
 use serde::de::DeserializeOwned;
 
-use crate::read::capture;
+use crate::read::capture::nodes;
 use crate::{config, http, region};
 
 /// A file's name, its text as this build embeds it, and whether a downloaded
@@ -28,22 +28,22 @@ const EMBEDDED: &[Embedded] = &[
     (
         "client/exploration.json",
         include_str!("../assets/client/exploration.json"),
-        json_as::<Vec<capture::Exploration>>,
+        json_as::<Vec<nodes::Exploration>>,
     ),
     (
         "client/waypoints.json",
         include_str!("../assets/client/waypoints.json"),
-        json_as::<capture::Waypoints>,
+        json_as::<nodes::Waypoints>,
     ),
     (
         "client/regions.json",
         include_str!("../assets/client/regions.json"),
-        json_as::<Vec<capture::Region>>,
+        json_as::<Vec<nodes::Region>>,
     ),
     (
         "client/localization.json",
         include_str!("../assets/client/localization.json"),
-        json_as::<capture::Localization>,
+        json_as::<nodes::Localization>,
     ),
 ];
 /// Shorter than the profile's, since the capture waits on it.

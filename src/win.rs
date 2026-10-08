@@ -91,7 +91,7 @@ pub fn error(message: &str) {
     write(Level::Error, message);
 }
 
-fn write(level: Level, message: &str) {
+pub fn write(level: Level, message: &str) {
     let now = Local::now();
     println!("{} {} {message}", now.format("%H:%M:%S"), level.tag());
     append(&format!(

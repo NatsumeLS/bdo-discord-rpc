@@ -15,7 +15,7 @@ use crate::phase::Phase;
 use crate::read::{game, log_tail};
 use crate::region::{self, Wire};
 use crate::watch::Shared;
-use crate::win::{self, log};
+use crate::win::{self, log, Level};
 use nodes::{locate, Place};
 
 const HEADER: usize = 5;
@@ -489,32 +489,34 @@ fn game_servers(domain: &str) -> HashMap<Ipv4Addr, String> {
         .collect()
 }
 
-fn note(verbose: bool, text: &str) {
+/// Printed plain under `--capture`, logged at `level` in the tray.
+fn note(verbose: bool, level: Level, text: &str) {
     if verbose {
         println!("{text}");
     } else {
-        win::warn(text);
+        win::write(level, text);
     }
 }
 
 /// The game's opcodes, or none without any, and then the game files
 /// stand in. A build without its own checks the repo for them.
 fn wire_of(process: &game::GameProcess, verbose: bool) -> Option<&'static Wire> {
-    let info = |text: &str| {
-        if verbose {
-            println!("{text}");
-        } else {
-            log(text);
-        }
-    };
     let client = game::client_version(&process.root);
     let own = |client: u32| region::wire(Some(client)).is_some_and(|(build, _)| build == client);
     let checked = client.filter(|&client| !own(client)).map(|client| {
-        info(&format!("Data: Checking for Opcodes for {client}"));
+        note(
+            verbose,
+            Level::Info,
+            &format!("Data: Checking for Opcodes for {client}"),
+        );
         let checked = data::update();
         match &checked {
             Ok(names) if !names.is_empty() => {
-                info(&format!("Data: Downloaded {}", names.join(", ")));
+                note(
+                    verbose,
+                    Level::Info,
+                    &format!("Data: Downloaded {}", names.join(", ")),
+                );
             }
             _ => {}
         }
@@ -523,6 +525,7 @@ fn wire_of(process: &game::GameProcess, verbose: bool) -> Option<&'static Wire> 
     let Some((build, wire)) = region::wire(client) else {
         note(
             verbose,
+            Level::Warn,
             "Capture: opcodes.toml has no Opcodes, falling back to the Game Files",
         );
         return None;
@@ -531,10 +534,12 @@ fn wire_of(process: &game::GameProcess, verbose: bool) -> Option<&'static Wire> 
     match (client.filter(|&client| client != build), checked) {
         (Some(_), Some(Err(e))) => note(
             verbose,
+            Level::Warn,
             &format!("Data: Could not check for new Opcodes ({e}), using the ones for {build}"),
         ),
         (Some(client), _) => note(
             verbose,
+            Level::Warn,
             &format!(
                 "Data: No Opcodes for {client} yet, using the ones for {build} until an Update is published, checked again at the next Game Start"
             ),
@@ -597,6 +602,7 @@ fn capture(dump: Option<&str>, verbose: bool, mut on: impl FnMut(Event)) -> Resu
     if let Some((_, remote)) = world {
         note(
             verbose,
+            Level::Warn,
             "Capture: Started while in the World, falling back to the Game Files for the Character until the next Load-in",
         );
         on(Event::Joined(*remote.ip()));

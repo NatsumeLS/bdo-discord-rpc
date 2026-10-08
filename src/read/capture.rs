@@ -17,6 +17,10 @@ use crate::watch::Shared;
 use crate::win::{self, log};
 
 const HEADER: usize = 5;
+/// The world server's port, which carries character select and play.
+const WORLD_PORT: u16 = 8889;
+/// World server hosts tried under the log's domain, `game01` up.
+const SERVER_COUNT: u32 = 99;
 const SYNC_CHAIN: usize = 3;
 const MAX_PENDING: usize = 256;
 
@@ -394,7 +398,6 @@ enum Event {
     /// A character entered the world on the server at this address.
     Entered {
         server: Ipv4Addr,
-        wire: &'static Wire,
         id: u64,
         name: String,
         family: String,
@@ -406,7 +409,7 @@ enum Event {
     Listening,
     /// Started with the game already connected to the world server at this
     /// address, so no entry was seen.
-    Joined(Ipv4Addr, &'static Wire),
+    Joined(Ipv4Addr),
     /// The game closed or restarted, so nothing captured from it still holds.
     GameEnded,
     /// Once a second, so waiting work is retried while the game sends nothing.
@@ -471,7 +474,7 @@ pub fn run(dump: Option<&str>) -> i32 {
         Event::Listed => println!("  >> character list"),
         Event::Left => println!("  >> left the world server"),
         Event::Listening => {}
-        Event::Joined(server, _) => println!("  >> already on the world server {server}"),
+        Event::Joined(server) => println!("  >> already on the world server {server}"),
         Event::GameEnded => println!("  >> game closed"),
         Event::Tick => {}
     });
@@ -498,7 +501,6 @@ pub fn follow(shared: &Shared) {
     }
     let mut world = None;
     let mut named = None;
-    let mut wire = None;
     let mut hosts: (String, HashMap<Ipv4Addr, String>) = Default::default();
     let followed = capture(None, false, |event| {
         let Ok(mut captured) = shared.captured.lock() else {
@@ -507,9 +509,8 @@ pub fn follow(shared: &Shared) {
         let now = Local::now().timestamp();
         match event {
             Event::Listening => set(CaptureState::Listening(now)),
-            Event::Joined(server, read) => {
+            Event::Joined(server) => {
                 world = Some(server);
-                wire = Some(read);
                 captured.joined = true;
             }
             Event::GameEnded => {
@@ -523,13 +524,11 @@ pub fn follow(shared: &Shared) {
             }
             Event::Entered {
                 server,
-                wire: read,
                 id,
                 name,
                 family,
             } => {
                 world = Some(server);
-                wire = Some(read);
                 captured.character = Some((id.to_string(), name));
                 captured.family = (!family.is_empty()).then_some(family);
                 captured.phase = Some((Phase::Play, now));
@@ -558,21 +557,18 @@ pub fn follow(shared: &Shared) {
         let Some(domain) = shared.server_domain.lock().ok().and_then(|d| d.clone()) else {
             return;
         };
-        let (Some(ip), Some(wire)) = (world, wire) else {
+        let Some(ip) = world else {
             return;
         };
         // An address the table lacks may be a lookup that failed, so it is
         // tried again, once per entry.
         if hosts.0 != domain || !hosts.1.contains_key(&ip) {
-            hosts = (domain.clone(), game_servers(&domain, wire));
+            hosts = (domain.clone(), game_servers(&domain));
         }
         named = world;
         let server = hosts.1.get(&ip).cloned();
         if server.is_none() {
-            win::warn(&format!(
-                "Capture: {ip} is no {}.{domain} server",
-                wire.server_hosts
-            ));
+            win::warn(&format!("Capture: {ip} is no game{{nn}}.{domain} server"));
         }
         if let Ok(mut captured) = shared.captured.lock() {
             captured.server = server;
@@ -587,10 +583,10 @@ pub fn follow(shared: &Shared) {
 
 /// Every world server host under the domain, by address. The servers publish
 /// no reverse DNS, so the names are looked up forward and matched.
-fn game_servers(domain: &str, wire: &Wire) -> HashMap<Ipv4Addr, String> {
-    (1..=wire.server_count)
+fn game_servers(domain: &str) -> HashMap<Ipv4Addr, String> {
+    (1..=SERVER_COUNT)
         .filter_map(|n| {
-            let host = format!("{}.{domain}", wire.server_host(n));
+            let host = format!("game{n:02}.{domain}");
             let ip = (host.as_str(), 0)
                 .to_socket_addrs()
                 .ok()?
@@ -611,27 +607,27 @@ fn note(verbose: bool, text: &str) {
     }
 }
 
-/// The region's capture keys, or none when any is missing, and then the game
-/// files stand in.
+/// The game's capture keys, or none without any, and then the game files
+/// stand in.
 fn wire_of(process: &game::GameProcess, verbose: bool) -> Option<&'static Wire> {
-    let code = game::detect_service(&process.root)?;
-    let wire = region::get(&code).and_then(|r| r.capture.as_ref());
-    match (wire, game::client_version(&process.root)) {
-        (None, _) => note(
+    let client = game::client_version(&process.root);
+    let Some((build, wire)) = region::wire(client) else {
+        note(
             verbose,
-            &format!("Capture: {code} is missing Capture Keys in regions.toml, falling back to the Game Files"),
-        ),
-        // Still decoded, since most patches leave the messages where they were.
-        (Some(w), Some(client)) if client != w.version => note(
+            "Capture: opcodes.toml has no Opcodes, falling back to the Game Files",
+        );
+        return None;
+    };
+    // Still decoded, since most patches leave the messages where they were.
+    if let Some(client) = client.filter(|&client| client != build) {
+        note(
             verbose,
             &format!(
-                "Capture: The Client is version {client} and the Capture Keys are for {}, so the Opcodes may have moved",
-                w.version
+                "Capture: The Client is version {client} and the Capture Keys are for {build}, so the Opcodes may have moved"
             ),
-        ),
-        _ => {}
+        );
     }
-    wire
+    Some(wire)
 }
 
 // Only after `npcap()`, since every pcap call before it crashes.
@@ -669,24 +665,27 @@ fn capture(dump: Option<&str>, verbose: bool, mut on: impl FnMut(Event)) -> Resu
     let mut finder = game::GameFinder::default();
     let identity = |p: &Option<game::GameProcess>| p.as_ref().map(|p| (p.pid, p.started_at));
     let mut running = finder.find();
-    // What to decode for the running game's region, looked up again for each game.
+    // What to decode for the running game's build, looked up again for each game.
     let mut wire_for = identity(&running);
     let mut wire = running.as_ref().and_then(|p| wire_of(p, verbose));
     // The connection the character entered on, whose end ends what it said.
     // Started in the world, the game already holds it, which names the
     // server now, while the character waits for the next entry.
-    let mut world = running.as_ref().zip(wire).and_then(|(process, w)| {
-        game::connections(process.pid)
-            .into_iter()
-            .find(|(_, remote, _)| remote.port() == w.world_port)
-            .map(|(local, remote, _)| (local, remote))
-    });
-    if let (Some((_, remote)), Some(w)) = (world, wire) {
+    let mut world = running
+        .as_ref()
+        .filter(|_| wire.is_some())
+        .and_then(|process| {
+            game::connections(process.pid)
+                .into_iter()
+                .find(|(_, remote, _)| remote.port() == WORLD_PORT)
+                .map(|(local, remote, _)| (local, remote))
+        });
+    if let Some((_, remote)) = world {
         note(
             verbose,
             "Capture: Started while in the World, falling back to the Game Files for the Character until the next Load-in",
         );
-        on(Event::Joined(*remote.ip(), w));
+        on(Event::Joined(*remote.ip()));
     }
     // Keyed by (local, remote), the value says whether the game owns it.
     let mut owners: HashMap<(SocketAddrV4, SocketAddrV4), (bool, Instant)> = HashMap::new();
@@ -813,7 +812,6 @@ fn capture(dump: Option<&str>, verbose: bool, mut on: impl FnMut(Event)) -> Resu
                         entered = true;
                         on(Event::Entered {
                             server: *remote.ip(),
-                            wire: w,
                             id: u64_at(f, w.enter_id),
                             name: utf16_at(f, w.enter_name, 16),
                             family: utf16_at(f, w.enter_family, 16),

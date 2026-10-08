@@ -9,19 +9,12 @@ pub struct Region {
     pub search: String,
     #[serde(default)]
     pub servers: Vec<String>,
-    // Flattened, so a region missing any capture key has no capture rather
-    // than failing the whole file.
-    #[serde(flatten)]
-    pub capture: Option<Wire>,
 }
 
 /// What the packet capture decodes, which moves with each client build.
 /// Offsets count from the start of the frame, header included.
 #[derive(Deserialize)]
 pub struct Wire {
-    /// The client build these were read from.
-    pub version: u32,
-    pub world_port: u16,
     pub list: u16,
     pub enter: u16,
     pub enter_length: usize,
@@ -31,21 +24,35 @@ pub struct Wire {
     pub enter_position: usize,
     pub position: u16,
     pub position_at: usize,
-    pub server_hosts: String,
-    pub server_count: u32,
-}
-
-impl Wire {
-    /// The host of world server `n`, like `game07` for `game{nn}`.
-    pub fn server_host(&self, n: u32) -> String {
-        self.server_hosts.replace("{nn}", &format!("{n:02}"))
-    }
 }
 
 fn all() -> &'static BTreeMap<String, Region> {
     static REGIONS: OnceLock<BTreeMap<String, Region>> = OnceLock::new();
     REGIONS
         .get_or_init(|| toml::from_str(include_str!("../assets/regions.toml")).unwrap_or_default())
+}
+
+fn wires() -> &'static BTreeMap<u32, Wire> {
+    static WIRES: OnceLock<BTreeMap<u32, Wire>> = OnceLock::new();
+    WIRES.get_or_init(|| {
+        // Each build on its own, so one with a typo loses only itself.
+        include_str!("../assets/opcodes.toml")
+            .parse::<toml::Table>()
+            .unwrap_or_default()
+            .into_iter()
+            .filter_map(|(build, keys)| Some((build.parse().ok()?, keys.try_into().ok()?)))
+            .collect()
+    })
+}
+
+/// The capture keys for this client build, or else the newest, with the
+/// build they were read from.
+pub fn wire(build: Option<u32>) -> Option<(u32, &'static Wire)> {
+    let wires = wires();
+    build
+        .and_then(|b| wires.get_key_value(&b))
+        .or_else(|| wires.last_key_value())
+        .map(|(&b, wire)| (b, wire))
 }
 
 pub fn get(code: &str) -> Option<&'static Region> {

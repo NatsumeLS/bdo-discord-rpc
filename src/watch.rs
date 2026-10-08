@@ -962,16 +962,10 @@ impl<'a> Watcher<'a> {
         (text, !matches!(kind, "starting" | "listening"))
     }
 
-    /// Flagged when the region's capture keys were read from another build.
+    /// Flagged when the capture keys were read from another build.
     fn client_row(&self) -> Option<(String, bool)> {
-        let game = self.game.as_ref()?;
-        let version = game.version?;
-        let keys = game
-            .service
-            .as_deref()
-            .and_then(region::get)
-            .and_then(|r| r.capture.as_ref())
-            .map(|wire| wire.version);
+        let version = self.game.as_ref()?.version?;
+        let keys = region::wire(Some(version)).map(|(build, _)| build);
         Some(match keys {
             Some(keys) if keys != version => (
                 t!("overview.client_mismatch", version = version, keys = keys).into_owned(),

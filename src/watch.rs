@@ -962,7 +962,7 @@ impl<'a> Watcher<'a> {
         (text, !matches!(kind, "starting" | "listening"))
     }
 
-    /// Flagged when the capture keys were read from another build.
+    /// Flagged when the opcodes were read from another build.
     fn client_row(&self) -> Option<(String, bool)> {
         let version = self.game.as_ref()?.version?;
         let keys = region::wire(Some(version)).map(|(build, _)| build);

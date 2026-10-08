@@ -604,8 +604,8 @@ fn note(verbose: bool, text: &str) {
     }
 }
 
-/// The game's capture keys, or none without any, and then the game files
-/// stand in. A build without its own keys checks the repo for them.
+/// The game's opcodes, or none without any, and then the game files
+/// stand in. A build without its own checks the repo for them.
 fn wire_of(process: &game::GameProcess, verbose: bool) -> Option<&'static Wire> {
     let client = game::client_version(&process.root);
     if client.is_some() && region::wire(client).map(|(build, _)| build) != client {
@@ -637,7 +637,7 @@ fn wire_of(process: &game::GameProcess, verbose: bool) -> Option<&'static Wire> 
         note(
             verbose,
             &format!(
-                "Capture: The Client is version {client} and the Capture Keys are for {build}, so the Opcodes may have moved"
+                "Capture: The Client is version {client} and the Opcodes are for {build}, so they may have moved"
             ),
         );
     }

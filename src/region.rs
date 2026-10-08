@@ -48,7 +48,7 @@ fn wires() -> &'static BTreeMap<u32, Wire> {
     })
 }
 
-/// The capture keys for this client build, or else the newest, with the
+/// The opcodes for this client build, or else the newest, with the
 /// build they were read from.
 pub fn wire(build: Option<u32>) -> Option<(u32, &'static Wire)> {
     let wires = wires();

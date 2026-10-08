@@ -22,6 +22,22 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
+      # The app replaces its copy of a data file only when its time here is newer.
+      - name: Manifest
+        if: github.event_name != 'workflow_dispatch'
+        shell: pwsh
+        env:
+          BASE: ${{ github.event.pull_request.base.sha || github.event.before }}
+        run: |
+          if ($env:BASE -match '^0+$') { "No earlier commit to compare"; exit 0 }
+          git fetch --no-tags --depth=1 origin $env:BASE
+          $old = git show "${env:BASE}:assets/manifest.json" | ConvertFrom-Json -AsHashtable
+          if (-not $old) { "No manifest before this push"; exit 0 }
+          $new = Get-Content assets/manifest.json -Raw | ConvertFrom-Json -AsHashtable
+          $stale = git diff --name-only $env:BASE HEAD -- assets/service assets/client |
+            Where-Object { $name = $_ -replace '^assets/', ''; -not ($new[$name] -gt $old[$name]) }
+          if ($stale) { throw "Changed without a newer time in assets/manifest.json: $($stale -join ', ')" }
+
       - uses: dtolnay/rust-toolchain@stable
         with:
           components: clippy, rustfmt

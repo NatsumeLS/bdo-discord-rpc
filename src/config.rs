@@ -22,8 +22,17 @@ struct Step {
     #[serde(rename = "move")]
     moves: BTreeMap<String, String>,
     delete: Vec<String>,
+    reset: Option<Reset>,
     rename: BTreeMap<String, String>,
     remove: Vec<String>,
+}
+
+/// Everything back to its default but the tables in `keep`, with the old
+/// file written to `backup` first.
+#[derive(Deserialize)]
+struct Reset {
+    keep: Vec<String>,
+    backup: String,
 }
 
 fn steps() -> &'static BTreeMap<u32, Step> {
@@ -44,7 +53,8 @@ fn version() -> u32 {
 
 pub enum Migration {
     Current,
-    Migrated(u32),
+    /// From this version, and where the old file went when a step reset it.
+    Migrated(u32, Option<PathBuf>),
     /// Written by a newer version, whose keys this one ignores.
     Newer(u32),
 }
@@ -363,12 +373,13 @@ pub fn migrate(path: &Path) -> Result<Migration, String> {
     if from == to {
         return Ok(Migration::Current);
     }
+    let mut backup = None;
     for step in steps().range(from + 1..).map(|(_, step)| step) {
-        apply(step, &mut doc);
+        backup = apply(step, &mut doc)?.or(backup);
     }
     doc["version"] = toml_edit::value(i64::from(to));
     write_atomic(path, &doc.to_string())?;
-    Ok(Migration::Migrated(from))
+    Ok(Migration::Migrated(from, backup))
 }
 
 /// A path under the exe's folder, or none for one that would leave it.
@@ -381,7 +392,9 @@ fn beside_exe(name: &str) -> Option<PathBuf> {
     inside.then(|| config_path().with_file_name(path))
 }
 
-fn apply(step: &Step, doc: &mut toml_edit::DocumentMut) {
+/// Where a reset put the old file, if this step has one. A backup that cannot
+/// be written stops the whole migration, so no reset runs without it.
+fn apply(step: &Step, doc: &mut toml_edit::DocumentMut) -> Result<Option<PathBuf>, String> {
     for (from, to) in &step.moves {
         let (Some(from), Some(to)) = (beside_exe(from), beside_exe(to)) else {
             continue;
@@ -402,6 +415,24 @@ fn apply(step: &Step, doc: &mut toml_edit::DocumentMut) {
     for path in step.delete.iter().filter_map(|name| beside_exe(name)) {
         let _ = std::fs::remove_file(path);
     }
+    let mut backup = None;
+    if let Some(reset) = &step.reset {
+        let path = beside_exe(&reset.backup)
+            .ok_or_else(|| format!("{} is outside the exe's Folder", reset.backup))?;
+        write_atomic(&path, &doc.to_string())?;
+        let defaults = toml::to_string_pretty(&Config::default())
+            .map_err(|e| format!("Serializing the Config: {e}"))?;
+        let mut fresh: toml_edit::DocumentMut = defaults
+            .parse()
+            .map_err(|e| format!("Parsing the Defaults: {e}"))?;
+        for key in &reset.keep {
+            if let Some(kept) = doc.remove(key) {
+                fresh.insert(key, kept);
+            }
+        }
+        *doc = fresh;
+        backup = Some(path);
+    }
     for (from, to) in &step.rename {
         if let Some(value) = take(doc, from) {
             if let Some((table, key)) = parent(doc, to, true) {
@@ -414,6 +445,7 @@ fn apply(step: &Step, doc: &mut toml_edit::DocumentMut) {
     for key in &step.remove {
         take(doc, key);
     }
+    Ok(backup)
 }
 
 fn take(doc: &mut toml_edit::DocumentMut, key: &str) -> Option<toml_edit::Item> {

@@ -98,7 +98,15 @@ fn run() -> i32 {
     log(&format!("Started version {}", env!("VERSION")));
     match config::migrate(&config::config_path()) {
         Ok(config::Migration::Current) => {}
-        Ok(config::Migration::Migrated(from)) => log(&format!("Config: Migrated from Version {from}")),
+        Ok(config::Migration::Migrated(from, backup)) => {
+            log(&format!("Config: Migrated from Version {from}"));
+            if let Some(backup) = backup {
+                win::warn(&format!(
+                    "Config: Reset to the Defaults, keeping Server and Character Names, the old one is {}",
+                    backup.display()
+                ));
+            }
+        }
         Ok(config::Migration::Newer(version)) => win::warn(&format!(
             "Config: Written by a newer Version ({version}), so Keys this one does not know are ignored"
         )),

@@ -42,21 +42,21 @@ servers = [
     "Edania",
 ]
 
-# Packet capture, read from client version 1271 on 2026-10-06. Opcodes and
+# Packet capture, read from client version 1278 on 2026-10-08. Opcodes and
 # offsets move with patches: run --capture with a dump file, search it for a
 # known character ID or name to find them again, then bump version. Offsets
 # count from the start of the frame, header included. Positions are x,
 # height, z as f32.
-version = 1271              # The client build, the first u32 of Paz/pad00000.meta
+version = 1278              # The client build, the first u32 of Paz/pad00000.meta
 world_port = 8889           # The world server, character select and play
-list = 0x0EE4               # One per character at character select
-enter = 0x0E98              # The character entering the world, matched by length
-enter_length = 8065         # Its full frame length, other lengths are other bundles
-enter_id = 83               # u64, the same number as the UserCache folder
-enter_name = 3970           # UTF-16, up to 16 characters
-enter_family = 4043         # UTF-16, up to 16 characters
-enter_position = 241        # Where the character entered
-position = 0x1AFC           # Own position while moving
-position_at = 6             # Its position
+list = 0x0E0E               # One per character at character select
+enter = 0x1B4C              # The character entering the world, matched by length
+enter_length = 8064         # Its full frame length, other lengths are other bundles
+enter_id = 3016             # u64, the same number as the UserCache folder
+enter_name = 3607           # UTF-16, up to 16 characters
+enter_family = 3137         # UTF-16, up to 16 characters
+enter_position = 125        # Where the character entered
+position = 0x0C3F           # Own position while moving
+position_at = 9             # Its position
 server_hosts = "game{nn}"   # Looked up under the domain the log names
 server_count = 99           # Hosts tried, from 01 up

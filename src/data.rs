@@ -2,37 +2,61 @@ use std::borrow::Cow;
 use std::collections::BTreeMap;
 use std::sync::atomic::{AtomicU32, Ordering};
 use std::sync::{Mutex, PoisonError};
+use std::time::Duration;
+
+use serde::de::DeserializeOwned;
 
 use crate::config;
-use crate::read::profile;
+use crate::read::{capture, profile};
+use crate::region;
 
-/// Every file the app can download, as this build embeds it.
-const EMBEDDED: &[(&str, &str)] = &[
+/// A file's name, its text as this build embeds it, and whether a downloaded
+/// copy reads as what the app parses it into.
+type Embedded = (&'static str, &'static str, fn(&str) -> bool);
+
+/// Every file the app can download.
+const EMBEDDED: &[Embedded] = &[
     (
         "service/regions.toml",
         include_str!("../assets/service/regions.toml"),
+        toml_as::<BTreeMap<String, region::Region>>,
     ),
     (
         "service/opcodes.toml",
         include_str!("../assets/service/opcodes.toml"),
+        toml_as::<BTreeMap<String, region::Wire>>,
     ),
     (
         "client/exploration.json",
         include_str!("../assets/client/exploration.json"),
+        json_as::<Vec<capture::Exploration>>,
     ),
     (
         "client/waypoints.json",
         include_str!("../assets/client/waypoints.json"),
+        json_as::<capture::Waypoints>,
     ),
     (
         "client/regions.json",
         include_str!("../assets/client/regions.json"),
+        json_as::<Vec<capture::Region>>,
     ),
     (
         "client/localization.json",
         include_str!("../assets/client/localization.json"),
+        json_as::<capture::Localization>,
     ),
 ];
+/// Shorter than the profile's, since the capture waits on it.
+const TIMEOUT: Duration = Duration::from_secs(5);
+
+fn toml_as<T: DeserializeOwned>(text: &str) -> bool {
+    toml::from_str::<T>(text).is_ok()
+}
+
+fn json_as<T: DeserializeOwned>(text: &str) -> bool {
+    serde_json::from_str::<T>(text).is_ok()
+}
 const MANIFEST: &str = include_str!("../assets/manifest.json");
 
 /// Bumped by every download, which makes `cached` parse again.
@@ -69,9 +93,13 @@ fn save(local: &mut Manifest, name: &str, text: &str, at: i64) -> Result<(), Str
 /// Writes out every embedded file the data folder lacks or holds an older
 /// copy of, so the folder holds them all.
 pub fn extract() -> Result<(), String> {
+    // Beside the exe, from before they moved into the data folder.
+    for moved in ["profile.json", "status.json"] {
+        let _ = std::fs::remove_file(config::config_path().with_file_name(moved));
+    }
     let embedded = manifest(MANIFEST);
     let mut local = local_manifest();
-    for &(name, text) in EMBEDDED {
+    for &(name, text, _) in EMBEDDED {
         let at = embedded.get(name).copied().unwrap_or_default();
         if local.get(name).is_some_and(|&held| held >= at) && config::data_dir().join(name).exists()
         {
@@ -93,34 +121,34 @@ pub fn load(name: &str) -> Cow<'static, str> {
     Cow::Borrowed(
         EMBEDDED
             .iter()
-            .find(|(n, _)| *n == name)
-            .map_or("", |(_, text)| text),
+            .find(|(n, _, _)| *n == name)
+            .map_or("", |(_, text, _)| text),
     )
 }
 
 /// Downloads every file the repo has newer than both copies here into the
 /// data folder, and returns their names.
 pub fn update() -> Result<Vec<&'static str>, String> {
-    let remote = manifest(&profile::get(&url("manifest.json"), "manifest.json")?);
+    let remote = manifest(&profile::get(
+        &url("manifest.json"),
+        "manifest.json",
+        TIMEOUT,
+    )?);
     let embedded = manifest(MANIFEST);
     let mut local = local_manifest();
     let mut updated = Vec::new();
     // Only names this build knows, so the manifest cannot write anywhere else.
-    for &(name, _) in EMBEDDED {
+    for &(name, _, reads) in EMBEDDED {
         let Some(&at) = remote.get(name) else {
             continue;
         };
         if Some(&at) <= local.get(name).max(embedded.get(name)) {
             continue;
         }
-        let text = profile::get(&url(name), name)?;
-        let parses = if name.ends_with(".json") {
-            serde_json::from_str::<serde_json::Value>(&text).is_ok()
-        } else {
-            text.parse::<toml::Table>().is_ok()
-        };
-        if !parses {
-            return Err(format!("{name} does not parse"));
+        let text = profile::get(&url(name), name, TIMEOUT)?;
+        // A newer layout than this build reads would replace a working copy.
+        if !reads(&text) {
+            return Err(format!("{name} is not in the Layout this Version reads"));
         }
         save(&mut local, name, &text, at)?;
         GENERATION.fetch_add(1, Ordering::Relaxed);

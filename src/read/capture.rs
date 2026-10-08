@@ -27,7 +27,7 @@ const MAX_PENDING: usize = 256;
 
 // The game's own tables, as they are dumped to assets/client.
 #[derive(Deserialize)]
-struct Exploration {
+pub struct Exploration {
     key: u32,
     enabled: bool,
     main: bool,
@@ -36,7 +36,7 @@ struct Exploration {
 }
 
 #[derive(Deserialize)]
-struct Waypoints {
+pub struct Waypoints {
     points: Vec<Waypoint>,
     links: Vec<(u32, u32)>,
 }
@@ -48,13 +48,13 @@ struct Waypoint {
 }
 
 #[derive(Deserialize)]
-struct Region {
+pub struct Region {
     territory: u8,
     position: [f32; 3],
 }
 
 /// Table, then id, then its text: 12 territory names, 29 node names.
-type Localization = HashMap<String, HashMap<String, String>>;
+pub type Localization = HashMap<String, HashMap<String, String>>;
 
 struct Node {
     place: Place,

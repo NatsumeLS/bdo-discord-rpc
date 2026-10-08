@@ -105,18 +105,15 @@ impl Profile {
     }
 }
 
-fn agent() -> ureq::Agent {
-    ureq::Agent::config_builder()
-        .timeout_connect(Some(TIMEOUT))
-        .timeout_recv_response(Some(TIMEOUT))
-        .timeout_recv_body(Some(TIMEOUT))
+pub fn get(url: &str, what: &str, timeout: Duration) -> Result<String, String> {
+    let agent: ureq::Agent = ureq::Agent::config_builder()
+        .timeout_connect(Some(timeout))
+        .timeout_recv_response(Some(timeout))
+        .timeout_recv_body(Some(timeout))
         .user_agent(USER_AGENT)
         .build()
-        .into()
-}
-
-pub fn get(url: &str, what: &str) -> Result<String, String> {
-    agent()
+        .into();
+    agent
         .get(url)
         .call()
         .map_err(|e| format!("{what}: {e}"))?
@@ -150,7 +147,7 @@ pub fn resolve_url(search: &str, family: &str) -> Result<String, String> {
         // `_type=1` searches Character Names and finds nothing for a family.
         format!("{search}?_type=2&_keyword={}", encode(family))
     };
-    let body = get(&url, &format!("Searching for {family}"))?;
+    let body = get(&url, &format!("Searching for {family}"), TIMEOUT)?;
 
     pick_profile_link(&body, family)
         .ok_or_else(|| format!("No Profile found for {family}, is it public?"))
@@ -179,7 +176,7 @@ pub fn fetch(url: &str) -> Result<Profile, String> {
         return Err("No Profile URL set in the Config".into());
     }
 
-    let mut profile = parse(&get(url, "Fetching the Profile")?);
+    let mut profile = parse(&get(url, "Fetching the Profile", TIMEOUT)?);
     profile.url = Some(url.to_string());
     profile.fetched_at = Local::now().timestamp();
 

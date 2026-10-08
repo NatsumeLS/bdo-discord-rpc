@@ -399,10 +399,7 @@ pub fn field_style(c: Scheme, status: text_input::Status, wrong: bool) -> text_i
             radius: shape::EXTRA_SMALL.into(),
         },
         icon: c.on_surface_variant,
-        placeholder: Color {
-            a: 0.6,
-            ..c.on_surface_variant
-        },
+        placeholder: c.on_surface_variant,
         value: if wrong { c.error } else { c.on_surface },
         selection: c.primary_container,
     }

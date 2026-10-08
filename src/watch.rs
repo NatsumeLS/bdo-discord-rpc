@@ -38,6 +38,8 @@ struct Backoff {
     min: u64,
     max: u64,
     secs: u64,
+    /// The wait now being held, for the Overview.
+    held: u64,
     next: Instant,
 }
 
@@ -47,6 +49,7 @@ impl Backoff {
             min,
             max,
             secs: min,
+            held: min,
             next: Instant::now(),
         }
     }
@@ -56,6 +59,7 @@ impl Backoff {
     }
 
     fn hold(&mut self) {
+        self.held = self.secs;
         self.next = Instant::now() + Duration::from_secs(self.secs);
     }
 
@@ -158,7 +162,7 @@ pub fn play_started_at(state: &GameState) -> Option<SystemTime> {
 pub enum Fetch {
     Skipped,
     Fetched,
-    Failed,
+    Failed(String),
 }
 
 pub fn refresh_profile(
@@ -219,7 +223,7 @@ pub fn refresh_profile(
                     }
                     Err(e) => {
                         win::warn(&format!("Profile: {e}"));
-                        return Fetch::Failed;
+                        return Fetch::Failed(e);
                     }
                 }
             } else {
@@ -263,7 +267,7 @@ pub fn refresh_profile(
         }
         Err(e) => {
             win::warn(&format!("Profile: {e}"));
-            Fetch::Failed
+            Fetch::Failed(e)
         }
     }
 }
@@ -414,6 +418,8 @@ struct Watcher<'a> {
 
     link: Link,
     profile_retry: Backoff,
+    /// Why the last profile refresh failed, until one succeeds.
+    profile_error: Option<String>,
 
     families: usize,
 
@@ -459,6 +465,7 @@ impl<'a> Watcher<'a> {
             session: Session::default(),
             link: Link::default(),
             profile_retry: Backoff::new(PROFILE_MIN_BACKOFF, PROFILE_MAX_BACKOFF),
+            profile_error: None,
             families: 0,
             prompted: HashSet::new(),
             prompt: win::ChildWindow::default(),
@@ -693,10 +700,14 @@ impl<'a> Watcher<'a> {
             &mut d.profile,
         ) {
             Fetch::Skipped => {}
-            Fetch::Fetched => self.profile_retry.succeeded(),
-            Fetch::Failed => {
+            Fetch::Fetched => {
+                self.profile_retry.succeeded();
+                self.profile_error = None;
+            }
+            Fetch::Failed(e) => {
                 let wait = self.profile_retry.failed();
                 win::warn(&format!("Profile: Retrying in {wait}s"));
+                self.profile_error = Some(e);
             }
         }
     }

@@ -3,7 +3,7 @@ use std::path::Path;
 
 use serde::{Deserialize, Serialize};
 
-use super::{stamp, Status, Watcher};
+use super::{stamp, summarize, Status, Watcher};
 use crate::phase;
 use crate::read::capture::{CaptureState, Captured};
 use crate::read::game;
@@ -156,8 +156,75 @@ impl Watcher<'_> {
         Some((sourced(text, source), attention))
     }
 
+    /// Only while the game runs, since that is when it connects.
+    fn discord_row(&self) -> Option<(String, bool)> {
+        self.game.as_ref()?;
+        Some(match self.link.client {
+            Some(_) => (tr("overview.discord_connected"), false),
+            None => (
+                t!("overview.discord_retrying", seconds = self.link.retry.held).into_owned(),
+                true,
+            ),
+        })
+    }
+
+    /// What Discord shows now, as the log words it.
+    fn presence_row(&self) -> Option<String> {
+        self.link.client.as_ref()?;
+        let hidden = self
+            .session
+            .stable
+            .phase
+            .is_some_and(|phase| !self.config.phase(phase).report);
+        Some(match &self.derived.last_sent {
+            Some(_) => summarize(&self.derived.last_sent),
+            None if hidden => tr("overview.presence_not_broadcast"),
+            None => tr("overview.presence_nothing"),
+        })
+    }
+
+    /// Flagged when it is failing, or its owner hides the stats.
+    fn profile_row(&self) -> Option<(String, bool)> {
+        if !self.config.profile.enabled {
+            return Some((tr("overview.profile_off"), false));
+        }
+        let fetched = self
+            .derived
+            .profile
+            .as_ref()
+            .and_then(|p| stamp(Some(p.fetched_at)));
+        let seconds = self.profile_retry.held;
+        Some(match (&self.profile_error, fetched) {
+            (Some(error), Some(fetched)) => (
+                t!(
+                    "overview.profile_failing",
+                    fetched = fetched,
+                    seconds = seconds,
+                    error = error
+                )
+                .into_owned(),
+                true,
+            ),
+            (Some(error), None) => (
+                t!("overview.profile_never", seconds = seconds, error = error).into_owned(),
+                true,
+            ),
+            (None, Some(fetched)) if self.derived.profile.as_ref().is_some_and(|p| p.hidden) => (
+                t!("overview.profile_hidden", fetched = fetched).into_owned(),
+                true,
+            ),
+            (None, fetched) => (fetched?, false),
+        })
+    }
+
     fn character_row(&self, captured: &Captured) -> Option<(String, bool)> {
-        let key = self.session.character.as_deref()?;
+        let s = &self.session;
+        let Some(key) = s.character.as_deref() else {
+            let missed = self.config.identity.show_character
+                && s.missed_for.is_some()
+                && s.missed_for == s.state.phase_since;
+            return missed.then(|| (tr("overview.character_unreadable"), true));
+        };
         let (text, attention) = match self.character_name(key) {
             Some(name) if self.derived.unmatched.as_ref() == Some(&name) => (
                 t!("overview.character_not_on_profile", key = key, name = name),
@@ -259,6 +326,8 @@ impl Watcher<'_> {
                 group(
                     tr("overview.session"),
                     vec![
+                        flagged(tr("overview.discord"), self.discord_row()),
+                        row(tr("overview.presence"), self.presence_row()),
                         row(tr("overview.phase"), Some(self.phase_row(&captured))),
                         row(tr("overview.phase_since"), stamp(stable.phase_since)),
                         row(tr("overview.session_start"), stamp(stable.session_start)),
@@ -292,10 +361,7 @@ impl Watcher<'_> {
                             tr("overview.contribution"),
                             profile.and_then(|p| p.contribution.clone()),
                         ),
-                        row(
-                            tr("overview.profile_fetched"),
-                            stamp(profile.map(|p| p.fetched_at)),
-                        ),
+                        flagged(tr("overview.profile_fetched"), self.profile_row()),
                     ],
                 ),
                 group(

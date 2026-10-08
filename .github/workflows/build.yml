@@ -30,7 +30,7 @@ jobs:
       name: ${{ steps.stage.outputs.name }}
       tag: ${{ steps.stage.outputs.tag }}
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
         with:
           ref: ${{ needs.manifest.outputs.sha || github.sha }}
 
@@ -80,7 +80,7 @@ jobs:
             throw "wpcap.dll is not a delay load import only"
           }
 
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v7
         with:
           name: ${{ steps.stage.outputs.artifact }}
           path: dist
@@ -92,12 +92,12 @@ jobs:
     permissions:
       contents: write
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
         with:
           ref: ${{ needs.manifest.outputs.sha }}
           fetch-depth: 0
 
-      - uses: actions/download-artifact@v4
+      - uses: actions/download-artifact@v8
         with:
           name: ${{ needs.build.outputs.artifact }}
           path: dist

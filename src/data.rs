@@ -17,20 +17,20 @@ const EMBEDDED: &[(&str, &str)] = &[
         include_str!("../assets/service/opcodes.toml"),
     ),
     (
-        "game/exploration.json",
-        include_str!("../assets/game/exploration.json"),
+        "client/exploration.json",
+        include_str!("../assets/client/exploration.json"),
     ),
     (
-        "game/waypoints.json",
-        include_str!("../assets/game/waypoints.json"),
+        "client/waypoints.json",
+        include_str!("../assets/client/waypoints.json"),
     ),
     (
-        "game/regions.json",
-        include_str!("../assets/game/regions.json"),
+        "client/regions.json",
+        include_str!("../assets/client/regions.json"),
     ),
     (
-        "game/localization.json",
-        include_str!("../assets/game/localization.json"),
+        "client/localization.json",
+        include_str!("../assets/client/localization.json"),
     ),
 ];
 const MANIFEST: &str = include_str!("../assets/manifest.json");

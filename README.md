@@ -84,4 +84,4 @@ cargo build --release
 
 ### Location Data
 
-The node, region and territory data in `assets/game/` comes from the game's own data files. It is refreshed by the maintainer after patches that add areas, and reaches the app the same way.
+The node, region and territory data in `assets/client/` comes from the game's own data files. It is refreshed by the maintainer after patches that add areas, and reaches the app the same way.

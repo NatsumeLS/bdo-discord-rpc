@@ -25,7 +25,7 @@ const SERVER_COUNT: u32 = 99;
 const SYNC_CHAIN: usize = 3;
 const MAX_PENDING: usize = 256;
 
-// The game's own tables, as they are dumped to assets/game.
+// The game's own tables, as they are dumped to assets/client.
 #[derive(Deserialize)]
 struct Exploration {
     key: u32,
@@ -74,10 +74,10 @@ fn nodes() -> &'static [Node] {
     static NODES: Mutex<Option<(u32, &'static Vec<Node>)>> = Mutex::new(None);
     data::cached::<Vec<Node>>(&NODES, || {
         let (Ok(nodes), Ok(waypoints), Ok(regions), Ok(text)) = (
-            serde_json::from_str::<Vec<Exploration>>(&data::load("game/exploration.json")),
-            serde_json::from_str::<Waypoints>(&data::load("game/waypoints.json")),
-            serde_json::from_str::<Vec<Region>>(&data::load("game/regions.json")),
-            serde_json::from_str::<Localization>(&data::load("game/localization.json")),
+            serde_json::from_str::<Vec<Exploration>>(&data::load("client/exploration.json")),
+            serde_json::from_str::<Waypoints>(&data::load("client/waypoints.json")),
+            serde_json::from_str::<Vec<Region>>(&data::load("client/regions.json")),
+            serde_json::from_str::<Localization>(&data::load("client/localization.json")),
         ) else {
             return Vec::new();
         };

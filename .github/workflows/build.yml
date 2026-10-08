@@ -11,7 +11,17 @@ concurrency:
   cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 jobs:
+  # Only a push to main bumps, since users download from main.
+  manifest:
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    uses: ./.github/workflows/manifest.yml
+    permissions:
+      contents: write
+
   build:
+    needs: manifest
+    # Also when the bump was skipped, as for a pull request.
+    if: ${{ !failure() && !cancelled() }}
     runs-on: windows-latest
     permissions:
       contents: read
@@ -21,22 +31,8 @@ jobs:
       tag: ${{ steps.stage.outputs.tag }}
     steps:
       - uses: actions/checkout@v4
-
-      # The app replaces its copy of a data file only when its time here is newer.
-      - name: Manifest
-        if: github.event_name != 'workflow_dispatch'
-        shell: pwsh
-        env:
-          BASE: ${{ github.event.pull_request.base.sha || github.event.before }}
-        run: |
-          if ($env:BASE -match '^0+$') { "No earlier commit to compare"; exit 0 }
-          git fetch --no-tags --depth=1 origin $env:BASE
-          $old = git show "${env:BASE}:assets/manifest.json" | ConvertFrom-Json -AsHashtable
-          if (-not $old) { "No manifest before this push"; exit 0 }
-          $new = Get-Content assets/manifest.json -Raw | ConvertFrom-Json -AsHashtable
-          $stale = git diff --name-only $env:BASE HEAD -- assets/service assets/client |
-            Where-Object { $name = $_ -replace '^assets/', ''; -not ($new[$name] -gt $old[$name]) }
-          if ($stale) { throw "Changed without a newer time in assets/manifest.json: $($stale -join ', ')" }
+        with:
+          ref: ${{ needs.manifest.outputs.sha || github.sha }}
 
       - uses: dtolnay/rust-toolchain@stable
         with:
@@ -90,7 +86,7 @@ jobs:
           path: dist
 
   release:
-    needs: build
+    needs: [manifest, build]
     if: github.event_name == 'push' && github.ref == 'refs/heads/main'
     runs-on: windows-latest
     permissions:
@@ -98,6 +94,7 @@ jobs:
     steps:
       - uses: actions/checkout@v4
         with:
+          ref: ${{ needs.manifest.outputs.sha }}
           fetch-depth: 0
 
       - uses: actions/download-artifact@v4
@@ -118,6 +115,6 @@ jobs:
           $prev = git tag --list 'v*' --merged HEAD --sort=-v:refname | Select-Object -First 1
           $range = if ($prev) { "$prev..HEAD" } else { "HEAD" }
           $repo = "$env:GITHUB_SERVER_URL/$env:GITHUB_REPOSITORY"
-          git log $range --no-merges --pretty="- %s ([%h]($repo/commit/%H))" > notes.md
+          git log $range --no-merges --invert-grep --grep="^chore: Bump the Data Manifest$" --pretty="- %s ([%h]($repo/commit/%H))" > notes.md
           if ($prev) { "`n**Full Changelog**: $repo/compare/$prev...$env:TAG" >> notes.md }
-          gh release create $env:TAG $env:ZIP --target $env:GITHUB_SHA --title $env:TAG --notes-file notes.md
+          gh release create $env:TAG $env:ZIP --target (git rev-parse HEAD) --title $env:TAG --notes-file notes.md

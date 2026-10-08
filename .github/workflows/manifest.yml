@@ -1,0 +1,57 @@
+name: Manifest
+
+# The app replaces its copy of a data file only when its time in
+# assets/manifest.json is newer, so every data file a push changed gets the
+# current time, unless the push gave it a newer one already. Called by the
+# build before it builds, which then builds the commit this makes.
+on:
+  workflow_call:
+    outputs:
+      sha:
+        description: The commit to build, the push's own or the bump on top of it
+        value: ${{ jobs.bump.outputs.sha }}
+
+jobs:
+  bump:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    outputs:
+      sha: ${{ steps.bump.outputs.sha }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Bump
+        id: bump
+        env:
+          GH_TOKEN: ${{ github.token }}
+          BASE: ${{ github.event.before }}
+        run: |
+          echo "sha=$GITHUB_SHA" >> "$GITHUB_OUTPUT"
+          if [[ "$BASE" =~ ^0+$ ]]; then echo "No earlier commit to compare"; exit 0; fi
+          git fetch --no-tags --depth=1 origin "$BASE"
+          old=$(git show "$BASE:assets/manifest.json" 2>/dev/null || echo '{}')
+          now=$(date +%s)
+          bumped=()
+          for file in $(git diff --name-only "$BASE" HEAD -- assets/service assets/client); do
+            [ -f "$file" ] || continue
+            name=${file#assets/}
+            was=$(jq -r --arg name "$name" '.[$name] // 0' <<< "$old")
+            is=$(jq -r --arg name "$name" '.[$name] // 0' assets/manifest.json)
+            if [ "$is" -le "$was" ]; then
+              jq --arg name "$name" --argjson at "$now" '.[$name] = $at' assets/manifest.json > manifest.tmp
+              mv manifest.tmp assets/manifest.json
+              bumped+=("$name")
+            fi
+          done
+          if [ ${#bumped[@]} -eq 0 ]; then echo "Nothing to bump"; exit 0; fi
+          echo "Bumping ${bumped[*]}"
+          # Through the API, so GitHub signs it, and refused if the manifest
+          # changed on the branch since this push.
+          sha=$(gh api -X PUT "repos/$GITHUB_REPOSITORY/contents/assets/manifest.json" \
+            -f message="chore: Bump the Data Manifest" \
+            -f content="$(base64 -w0 assets/manifest.json)" \
+            -f sha="$(git rev-parse HEAD:assets/manifest.json)" \
+            -f branch="$GITHUB_REF_NAME" \
+            --jq .commit.sha)
+          echo "sha=$sha" >> "$GITHUB_OUTPUT"

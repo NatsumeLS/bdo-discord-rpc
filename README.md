@@ -6,7 +6,7 @@ Discord Rich Presence for Black Desert. It reads the files the game writes to di
 
 - Shows what you are doing: starting up, main menu, server select, character creation, character select, loading or in game.
 - Shows your family, character, server and region.
-- Shows where you are, territory and node, with Npcap installed.
+- Shows where you are, node and territory, with Npcap installed.
 - Shows your character's class, level and portrait from the Adventurer Profile.
 - An elapsed timer for the session or the current phase.
 - Two buttons, the first linking your Adventurer Profile by default.
@@ -29,7 +29,7 @@ It sits in the system tray. It shows your presence while the game runs, and clea
 - Left-click the tray icon to open or close the settings.
 - Right-click it for **Run at Startup**, **Reload Config** and **Quit**.
 - The icon color shows the state:
-  - Gray: the game is not running.
+  - Gray: the game is not running, or the app is switched off in the settings.
   - Amber: Discord is not connected, or the config has an error.
   - Green: the presence is live.
 
@@ -55,7 +55,16 @@ Your characters' names, classes and portraits are always shown. Levels, guild, g
 3. Click **Change Privacy Settings**.
 4. Turn on **Show Additional Info**.
 
-While they are hidden, the tray's log says so and links your profile.
+## Connections
+
+The app only connects to:
+
+- Discord on your own PC, to set the presence.
+- Your region's Adventurer Profile website, to find and read your profile, at most once an hour.
+- This repository on GitHub, only after a game patch the app does not know yet, to download whichever of its data files are newer.
+- The game's own server names, looked up by DNS with Npcap installed, to name the server you are on.
+
+It sends nothing else anywhere.
 
 ## Regions
 
@@ -72,6 +81,12 @@ In a region that is not supported yet, the presence should still work, without s
 - New servers have to be named once, and the app suggests the known names. Without Npcap, new characters have to be named too.
 - Start it before entering a character. Otherwise it shows your main character until you switch character or, with Npcap, change channel.
 - With several accounts on one PC, set **Family Name** in the settings.
+
+## Uninstalling
+
+1. Right-click the tray icon and untick **Run at Startup**, so no startup entry is left behind.
+2. Quit it from the same menu.
+3. Delete its folder.
 
 ## Building
 

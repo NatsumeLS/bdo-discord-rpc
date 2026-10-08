@@ -151,7 +151,7 @@ fn locate(x: f32, z: f32) -> Option<(&'static Place, bool)> {
         })
 }
 
-// Bounds checked, since the offsets come from regions.toml.
+// Bounds checked, since the offsets come from opcodes.toml.
 fn f32_at(f: &[u8], at: usize) -> Option<f32> {
     Some(f32::from_le_bytes(f.get(at..at + 4)?.try_into().ok()?))
 }

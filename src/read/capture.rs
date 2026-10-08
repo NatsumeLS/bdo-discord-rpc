@@ -50,6 +50,7 @@ fn utf16_at(f: &[u8], at: usize, max: usize) -> String {
     String::from_utf16_lossy(&units)
 }
 const RECHECK: Duration = Duration::from_secs(5);
+const RETRY: Duration = Duration::from_secs(30);
 const STATS_EVERY: Duration = Duration::from_secs(10);
 
 /// Loads Npcap's wpcap.dll, which every pcap call needs first: it is delay
@@ -359,7 +360,8 @@ pub fn run(dump: Option<&str>) -> i32 {
     }
 }
 
-/// Keeps the tray's `Captured` current, until the capture fails.
+/// Keeps the tray's `Captured` current, starting the capture again after it
+/// fails, since a network that was not up yet or an adapter reset ends it.
 pub fn follow(shared: &Shared) {
     let set = |state| {
         if let Ok(mut capture) = shared.capture.lock() {
@@ -371,10 +373,32 @@ pub fn follow(shared: &Shared) {
         set(CaptureState::NoNpcap);
         return;
     }
+    let mut failed = None;
+    loop {
+        let Err(e) = follow_once(shared, set) else {
+            return;
+        };
+        // Once per cause, or a long time offline repeats it every retry.
+        if failed.as_ref() != Some(&e) {
+            win::warn(&format!(
+                "Capture: {e}, falling back to the Game Files, retrying every {}s",
+                RETRY.as_secs()
+            ));
+        }
+        if let Ok(mut captured) = shared.captured.lock() {
+            *captured = Captured::default();
+        }
+        set(CaptureState::Failed(e.clone()));
+        failed = Some(e);
+        std::thread::sleep(RETRY);
+    }
+}
+
+fn follow_once(shared: &Shared, set: impl Fn(CaptureState)) -> Result<(), String> {
     let mut world = None;
     let mut named = None;
     let mut hosts: (String, HashMap<Ipv4Addr, String>) = Default::default();
-    let followed = capture(None, false, |event| {
+    capture(None, false, |event| {
         let Ok(mut captured) = shared.captured.lock() else {
             return;
         };
@@ -446,11 +470,7 @@ pub fn follow(shared: &Shared) {
             captured.server = server;
             captured.resolving = false;
         }
-    });
-    if let Err(e) = followed {
-        win::warn(&format!("Capture: {e}, falling back to the Game Files"));
-        set(CaptureState::Failed(e));
-    }
+    })
 }
 
 /// Every world server host under the domain, by address. The servers publish

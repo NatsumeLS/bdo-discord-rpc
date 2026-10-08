@@ -674,6 +674,8 @@ impl<'a> Watcher<'a> {
             }
         } else if s.missed_for != s.state.phase_since && past_read_window(started) {
             s.missed_for = s.state.phase_since;
+            // Or the character before the swap stands in, not the main.
+            s.character = None;
             win::warn("Character: Not readable, using the Main Character until the next Load-in");
         }
     }

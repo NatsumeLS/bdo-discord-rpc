@@ -138,6 +138,7 @@ pub struct PresenceFields {
 const GAME_NAME: &str = "Black Desert";
 pub const BUTTON_LABEL_MAX: usize = 32;
 pub const BUTTON_URL_MAX: usize = 512;
+const TEXT_MAX: usize = 128;
 
 pub fn is_button_url(url: &str) -> bool {
     url.len() <= BUTTON_URL_MAX && (url.starts_with("https://") || url.starts_with("http://"))
@@ -251,6 +252,11 @@ fn usable(value: String) -> Option<String> {
     (value.chars().count() >= 2).then_some(value)
 }
 
+// Discord drops the whole activity over one longer text, and says nothing back.
+fn text(value: String) -> Option<String> {
+    usable(value).map(|value| value.chars().take(TEXT_MAX).collect())
+}
+
 pub fn build(config: &Config, state: &GameState, ctx: &Context) -> Option<PresenceFields> {
     let phase = state.phase?;
     let phase_config = config.phase(phase);
@@ -265,7 +271,7 @@ pub fn build(config: &Config, state: &GameState, ctx: &Context) -> Option<Presen
     };
 
     let mut large_image = usable(expand(&phase_config.large_image, ctx));
-    let mut large_text = usable(expand(&phase_config.large_text, ctx));
+    let mut large_text = text(expand(&phase_config.large_text, ctx));
     let mut small_image = usable(expand(&phase_config.small_image, ctx));
 
     let game_icon = usable(expand(&config.display.game_icon, ctx));
@@ -281,13 +287,13 @@ pub fn build(config: &Config, state: &GameState, ctx: &Context) -> Option<Presen
     }
 
     Some(PresenceFields {
-        details: usable(expand(&phase_config.details, ctx)),
-        state: usable(expand(&phase_config.state, ctx)),
+        details: text(expand(&phase_config.details, ctx)),
+        state: text(expand(&phase_config.state, ctx)),
         start,
         large_image,
         large_text,
         small_image,
-        small_text: usable(expand(&phase_config.small_text, ctx)),
+        small_text: text(expand(&phase_config.small_text, ctx)),
         buttons: [
             (&phase_config.button_label, &phase_config.button_url),
             (

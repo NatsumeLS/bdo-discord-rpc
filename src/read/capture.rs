@@ -342,7 +342,6 @@ pub fn run(dump: Option<&str>) -> i32 {
             id,
             name,
             family,
-            ..
         } => println!("  >> entered {name} of {family} ({id}) on {server}"),
         Event::Listed => println!("  >> character list"),
         Event::Left => println!("  >> left the world server"),

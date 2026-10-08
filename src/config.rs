@@ -1,5 +1,6 @@
 use std::collections::BTreeMap;
 use std::path::{Path, PathBuf};
+use std::sync::OnceLock;
 use std::time::SystemTime;
 
 use serde::{Deserialize, Serialize};
@@ -14,9 +15,46 @@ const PROFILE_BUTTON_URL: &str = "{profile_url}";
 
 const GAME_ICON: &str = "https://cdn.patchbot.io/games/25/black-desert-online_1780346031_sm.webp";
 
+/// The steps that bring a config up to one version from the one before.
+#[derive(Deserialize, Default)]
+#[serde(default)]
+struct Step {
+    #[serde(rename = "move")]
+    moves: BTreeMap<String, String>,
+    delete: Vec<String>,
+    rename: BTreeMap<String, String>,
+    remove: Vec<String>,
+}
+
+fn steps() -> &'static BTreeMap<u32, Step> {
+    static STEPS: OnceLock<BTreeMap<u32, Step>> = OnceLock::new();
+    STEPS.get_or_init(|| {
+        toml::from_str::<BTreeMap<String, Step>>(include_str!("../assets/migrations.toml"))
+            .unwrap_or_default()
+            .into_iter()
+            .filter_map(|(version, step)| Some((version.parse().ok()?, step)))
+            .collect()
+    })
+}
+
+/// The config layout this build writes, the newest step it knows.
+fn version() -> u32 {
+    steps().keys().max().copied().unwrap_or_default()
+}
+
+pub enum Migration {
+    Current,
+    Migrated(u32),
+    /// Written by a newer version, whose keys this one ignores.
+    Newer(u32),
+}
+
 #[derive(Serialize, Deserialize, Clone, PartialEq)]
 #[serde(default)]
 pub struct Config {
+    // Its own default, so a config written before versions reads as 0.
+    #[serde(default)]
+    pub version: u32,
     pub enabled: bool,
     pub language: String,
     pub client_id: String,
@@ -182,6 +220,7 @@ fn phase_defaults(phase: Phase) -> PhaseConfig {
 impl Default for Config {
     fn default() -> Self {
         Config {
+            version: version(),
             enabled: true,
             language: "auto".into(),
             client_id: DEFAULT_CLIENT_ID.into(),
@@ -301,6 +340,108 @@ pub fn load_or_create(path: &Path) -> Result<Config, String> {
     }
 
     Ok(config)
+}
+
+/// Brings an older file up to `version()` in place, leaving the rest as
+/// written. Only the tray calls it, so two processes never migrate at once. A
+/// file that does not parse is left to the watcher, which reports it.
+pub fn migrate(path: &Path) -> Result<Migration, String> {
+    let Some(mut doc) = std::fs::read_to_string(path)
+        .ok()
+        .and_then(|text| text.parse::<toml_edit::DocumentMut>().ok())
+    else {
+        return Ok(Migration::Current);
+    };
+    let from = doc
+        .get("version")
+        .and_then(toml_edit::Item::as_integer)
+        .map_or(0, |v| u32::try_from(v).unwrap_or(0));
+    let to = version();
+    if from > to {
+        return Ok(Migration::Newer(from));
+    }
+    if from == to {
+        return Ok(Migration::Current);
+    }
+    for step in steps().range(from + 1..).map(|(_, step)| step) {
+        apply(step, &mut doc);
+    }
+    doc["version"] = toml_edit::value(i64::from(to));
+    write_atomic(path, &doc.to_string())?;
+    Ok(Migration::Migrated(from))
+}
+
+/// A path under the exe's folder, or none for one that would leave it.
+fn beside_exe(name: &str) -> Option<PathBuf> {
+    let path = Path::new(name);
+    let inside = !name.is_empty()
+        && path
+            .components()
+            .all(|part| matches!(part, std::path::Component::Normal(_)));
+    inside.then(|| config_path().with_file_name(path))
+}
+
+fn apply(step: &Step, doc: &mut toml_edit::DocumentMut) {
+    for (from, to) in &step.moves {
+        let (Some(from), Some(to)) = (beside_exe(from), beside_exe(to)) else {
+            continue;
+        };
+        if !from.exists() {
+            continue;
+        }
+        // Never over a newer copy, which the old one is then no use beside.
+        if to.exists() {
+            let _ = std::fs::remove_file(&from);
+            continue;
+        }
+        if let Some(parent) = to.parent() {
+            let _ = std::fs::create_dir_all(parent);
+        }
+        let _ = std::fs::rename(&from, &to);
+    }
+    for path in step.delete.iter().filter_map(|name| beside_exe(name)) {
+        let _ = std::fs::remove_file(path);
+    }
+    for (from, to) in &step.rename {
+        if let Some(value) = take(doc, from) {
+            if let Some((table, key)) = parent(doc, to, true) {
+                if !table.contains_key(key) {
+                    table.insert(key, value);
+                }
+            }
+        }
+    }
+    for key in &step.remove {
+        take(doc, key);
+    }
+}
+
+fn take(doc: &mut toml_edit::DocumentMut, key: &str) -> Option<toml_edit::Item> {
+    let (table, key) = parent(doc, key, false)?;
+    table.remove(key)
+}
+
+/// The table a dotted key sits in, and its last part, with the tables on the
+/// way made when `create` is set.
+fn parent<'a, 'k>(
+    doc: &'a mut toml_edit::DocumentMut,
+    key: &'k str,
+    create: bool,
+) -> Option<(&'a mut dyn toml_edit::TableLike, &'k str)> {
+    let (path, last) = match key.rsplit_once('.') {
+        Some((path, last)) => (Some(path), last),
+        None => (None, key),
+    };
+    let mut table: &mut dyn toml_edit::TableLike = doc.as_table_mut();
+    for part in path.into_iter().flat_map(|path| path.split('.')) {
+        let item = if create {
+            table.entry(part).or_insert(toml_edit::table())
+        } else {
+            table.get_mut(part)?
+        };
+        table = item.as_table_like_mut()?;
+    }
+    Some((table, last))
 }
 
 /// Adds one entry to the file as it is on disk, leaving the rest as written.

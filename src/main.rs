@@ -95,6 +95,14 @@ fn run() -> i32 {
     }
     win::enable_logfile(config::log_path());
     log(&format!("Started version {}", env!("VERSION")));
+    match config::migrate(&config::config_path()) {
+        Ok(config::Migration::Current) => {}
+        Ok(config::Migration::Migrated(from)) => log(&format!("Config: Migrated from Version {from}")),
+        Ok(config::Migration::Newer(version)) => win::warn(&format!(
+            "Config: Written by a newer Version ({version}), so Keys this one does not know are ignored"
+        )),
+        Err(e) => win::warn(&format!("Config: Could not migrate ({e})")),
+    }
     if let Err(e) = data::extract() {
         win::warn(&format!("Data: Could not write the Data Folder ({e})"));
     }

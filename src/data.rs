@@ -93,10 +93,6 @@ fn save(local: &mut Manifest, name: &str, text: &str, at: i64) -> Result<(), Str
 /// Writes out every embedded file the data folder lacks or holds an older
 /// copy of, so the folder holds them all.
 pub fn extract() -> Result<(), String> {
-    // Beside the exe, from before they moved into the data folder.
-    for moved in ["profile.json", "status.json"] {
-        let _ = std::fs::remove_file(config::config_path().with_file_name(moved));
-    }
     let embedded = manifest(MANIFEST);
     let mut local = local_manifest();
     for &(name, text, _) in EMBEDDED {

@@ -475,6 +475,8 @@ impl SettingsWindow {
             &self.saved.characters,
             &disk.characters,
         );
+        // Or a Save would undo the tray's migration.
+        self.config.version = disk.version;
         self.saved = disk;
         self.message = Some((tr("actions.changed_on_disk"), false));
     }
@@ -562,6 +564,8 @@ fn update(state: &mut SettingsWindow, message: Message) -> Task<Message> {
             }
             Action::Reset => {
                 state.config = Config {
+                    // Not reset, or the steps the file still needs would be skipped.
+                    version: state.config.version,
                     servers: std::mem::take(&mut state.config.servers),
                     characters: std::mem::take(&mut state.config.characters),
                     ..Config::default()

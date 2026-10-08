@@ -1,0 +1,38 @@
+# What brings an older config up to date, one table per config version, each
+# with the steps from the version before it. A config's version is the
+# highest table it has had, and a new config starts at the highest here. Only
+# the tray runs them, once each, but a step must be safe to run twice, since an
+# older settings window can save the old version back.
+#
+# Embedded only and never downloaded, since a step moves and deletes files.
+#
+# Files are named relative to the exe's folder, like "data/profile.json", and
+# a path that would leave it is skipped. Within a step, files are moved, then
+# deleted, then keys are renamed, then removed.
+# move: old file = new file, also for a rename. A file whose new path exists
+# already is deleted instead, since the copy there is newer.
+# delete: files.
+# rename: old key = new key, dotted for a key in a table. The value moves
+# unless the new key is set already.
+# remove: keys nothing reads any more.
+# Dotted keys split on every dot, so a key holding a dot, like a server key,
+# cannot be named here.
+
+[1]
+# Moved into the data folder. The status is rewritten by the tray at once.
+move = { "profile.json" = "data/profile.json" }
+delete = ["status.json"]
+# Fixed values or removed features since.
+remove = [
+    "poll_seconds",
+    "debounce_seconds",
+    "min_update_seconds",
+    "profile.refresh_minutes",
+    "phases.home.show_profile_button",
+    "phases.login.show_profile_button",
+    "phases.server_select.show_profile_button",
+    "phases.character_create.show_profile_button",
+    "phases.lobby.show_profile_button",
+    "phases.loading.show_profile_button",
+    "phases.play.show_profile_button",
+]

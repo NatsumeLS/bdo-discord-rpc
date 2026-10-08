@@ -212,7 +212,7 @@ fn phase_defaults(phase: Phase) -> PhaseConfig {
         Phase::Loading => ("Loading", "{family}", "", "{region}", ""),
         Phase::Play => (
             "{character}",
-            "{territory} - {node}",
+            "{node} - {territory}",
             "{class_image}",
             "{class} - Lv. {level}",
             "{region} - {server}",

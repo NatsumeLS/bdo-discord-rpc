@@ -183,10 +183,10 @@ impl Watcher<'_> {
         Some((sourced(text.into_owned(), source), attention))
     }
 
-    /// The place as the presence shows it, territory and node.
+    /// The place as the presence shows it by default, node and territory.
     fn location(&self) -> Option<String> {
         let place = self.captured().place;
-        let parts: Vec<&str> = [place.territory.as_str(), place.node.as_str()]
+        let parts: Vec<&str> = [place.node.as_str(), place.territory.as_str()]
             .into_iter()
             .filter(|part| !part.is_empty())
             .collect();

@@ -57,11 +57,10 @@ const STATS_EVERY: Duration = Duration::from_secs(10);
 /// loaded, and a call without it crashes. False when Npcap is not installed.
 fn npcap() -> bool {
     let root = std::env::var("SystemRoot").unwrap_or_else(|_| r"C:\Windows".into());
-    let wide = |s: &str| s.encode_utf16().chain([0]).collect::<Vec<u16>>();
     // Npcap keeps it outside the search path, beside the Packet.dll it loads.
     unsafe {
-        SetDllDirectoryW(wide(&format!(r"{root}\System32\Npcap")).as_ptr());
-        !LoadLibraryW(wide("wpcap.dll").as_ptr()).is_null()
+        SetDllDirectoryW(win::wide(&format!(r"{root}\System32\Npcap")).as_ptr());
+        !LoadLibraryW(win::wide("wpcap.dll").as_ptr()).is_null()
     }
 }
 

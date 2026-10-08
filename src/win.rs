@@ -201,7 +201,7 @@ impl ChildWindow {
 const RUN_KEY: &str = r"Software\Microsoft\Windows\CurrentVersion\Run";
 const VALUE_NAME: &str = "BdoDiscordRpc";
 
-fn wide(text: &str) -> Vec<u16> {
+pub fn wide(text: &str) -> Vec<u16> {
     text.encode_utf16().chain(std::iter::once(0)).collect()
 }
 

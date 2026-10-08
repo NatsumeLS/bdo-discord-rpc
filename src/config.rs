@@ -8,7 +8,7 @@ use serde::{Deserialize, Serialize};
 use crate::phase::Phase;
 
 const DEFAULT_CLIENT_ID: &str = "1551141273551904848";
-const CONFIG_FILE: &str = "bdo-discord-rpc.toml";
+const CONFIG_FILE: &str = "config.toml";
 
 const PROFILE_BUTTON_LABEL: &str = "Adventurer Profile";
 const PROFILE_BUTTON_URL: &str = "{profile_url}";
@@ -19,6 +19,8 @@ const GAME_ICON: &str = "https://cdn.patchbot.io/games/25/black-desert-online_17
 #[derive(Deserialize, Default)]
 #[serde(default)]
 struct Step {
+    /// What the config was called before this version.
+    config_from: Option<String>,
     #[serde(rename = "move")]
     moves: BTreeMap<String, String>,
     delete: Vec<String>,
@@ -311,7 +313,19 @@ pub fn config_path() -> PathBuf {
 }
 
 pub fn log_path() -> PathBuf {
-    config_path().with_extension("log")
+    config_path().with_file_name("bdo-discord-rpc.log")
+}
+
+// Only when `path` is missing, so no process writes the defaults over the name
+// the file still has. Before any step, since steps run on the file read.
+fn adopt_old_name(path: &Path) -> bool {
+    // A rename replaces its target, and a file that failed to read may exist.
+    !path.exists()
+        && steps()
+            .values()
+            .rev()
+            .filter_map(|step| beside_exe(step.config_from.as_deref()?))
+            .any(|old| std::fs::rename(old, path).is_ok())
 }
 
 pub fn data_dir() -> PathBuf {
@@ -331,7 +345,7 @@ pub fn mtime(path: &Path) -> Option<SystemTime> {
 }
 
 pub fn load_or_create(path: &Path) -> Result<Config, String> {
-    if !path.exists() {
+    if !path.exists() && !adopt_old_name(path) {
         let config = Config::default();
         save(path, &config)?;
         return Ok(config);
@@ -356,8 +370,9 @@ pub fn load_or_create(path: &Path) -> Result<Config, String> {
 /// written. Only the tray calls it, so two processes never migrate at once. A
 /// file that does not parse is left to the watcher, which reports it.
 pub fn migrate(path: &Path) -> Result<Migration, String> {
-    let Some(mut doc) = std::fs::read_to_string(path)
-        .ok()
+    let read = || std::fs::read_to_string(path).ok();
+    let Some(mut doc) = read()
+        .or_else(|| adopt_old_name(path).then(read).flatten())
         .and_then(|text| text.parse::<toml_edit::DocumentMut>().ok())
     else {
         return Ok(Migration::Current);

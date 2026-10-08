@@ -9,6 +9,10 @@
 # Files are named relative to the exe's folder, like "data/profile.json", and
 # a path that would leave it is skipped. Within a step, files are moved, then
 # deleted, then the config is reset, then keys are renamed, then removed.
+# config_from: what the config was called before this version. Unlike the
+# rest, it applies before the config is read, whenever no config.toml exists:
+# a file under an earlier name, newest step first, becomes config.toml and is
+# migrated from its own version.
 # move: old file = new file, also for a rename. A file whose new path exists
 # already is deleted instead, since the copy there is newer.
 # delete: files.
@@ -22,8 +26,9 @@
 
 # 1.0.0
 [1]
+config_from = "bdo-discord-rpc.toml"
 # Moved into the data folder. The status is rewritten by the tray at once.
 move = { "profile.json" = "data/profile.json" }
 delete = ["status.json"]
 # A fresh start for 1.0.0. The names are the user's own, not settings.
-reset = { keep = ["servers", "characters"], backup = "bdo-discord-rpc.toml.old" }
+reset = { keep = ["servers", "characters"], backup = "config.toml.old" }

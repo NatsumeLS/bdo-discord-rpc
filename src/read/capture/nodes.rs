@@ -103,14 +103,18 @@ fn nodes() -> &'static [Node] {
                 let anchor = (n.anchor != [0.0; 3]).then_some(n.anchor);
                 let [x, _, z] = positions.get(&n.key).copied().or(anchor)?;
                 // No node stores its territory, so it is the nearest region's.
-                let territory = regions
-                    .iter()
-                    .min_by(|a, b| {
-                        let d =
-                            |r: &Region| (r.position[0] - x).powi(2) + (r.position[2] - z).powi(2);
-                        d(a).total_cmp(&d(b))
-                    })
-                    .map_or_else(String::new, |r| text("12", r.territory.into()));
+                // Many regions share one point, so a tie goes to the territory
+                // most of them belong to.
+                let d = |r: &Region| (r.position[0] - x).powi(2) + (r.position[2] - z).powi(2);
+                let nearest = regions.iter().map(d).min_by(f32::total_cmp);
+                let mut votes: HashMap<u8, usize> = HashMap::new();
+                for r in regions.iter().filter(|r| Some(d(r)) == nearest) {
+                    *votes.entry(r.territory).or_default() += 1;
+                }
+                let territory = votes
+                    .into_iter()
+                    .max_by_key(|&(t, n)| (n, std::cmp::Reverse(t)))
+                    .map_or_else(String::new, |(t, _)| text("12", t.into()));
                 Some(Node {
                     place: Place {
                         node: text("29", parents.get(&n.key).copied().unwrap_or(n.key)),

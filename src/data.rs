@@ -141,7 +141,10 @@ pub fn update() -> Result<Vec<&'static str>, String> {
         let text = http::get(&url(name), name, TIMEOUT)?;
         // A newer layout than this build reads would replace a working copy.
         if !reads(&text) {
-            return Err(format!("{name} is not in the Layout this Version reads"));
+            crate::win::warn(&format!(
+                "Data: {name} is not in the Layout this Version reads, keeping the Copy here"
+            ));
+            continue;
         }
         save(&mut local, name, &text, at)?;
         GENERATION.fetch_add(1, Ordering::Relaxed);

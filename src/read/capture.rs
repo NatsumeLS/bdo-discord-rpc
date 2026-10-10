@@ -626,6 +626,8 @@ fn capture(dump: Option<&str>, verbose: bool, mut on: impl FnMut(Event)) -> Resu
                     running = now;
                     world = None;
                     place = None;
+                    streams.clear();
+                    owners.clear();
                     on(Event::GameEnded);
                 }
             }

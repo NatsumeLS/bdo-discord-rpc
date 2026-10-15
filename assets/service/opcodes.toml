@@ -37,3 +37,15 @@ enter_family = 3137
 enter_position = 125
 position = 0x0C3F
 position_at = 9
+
+# Read on 2026-10-15.
+[1285]
+list = 0x1AC0
+enter = 0x10E6
+enter_length = 8082
+enter_id = 90
+enter_name = 6679
+enter_family = 6751
+enter_position = 258
+position = 0x1A97
+position_at = 20
